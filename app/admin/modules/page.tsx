@@ -3,6 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+interface Module {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color?: string;
+  enabled: boolean;
+  category: string;
+  configUrl?: string;
+}
+
 export default function ModulesPage() {
   const [modules, setModules] = useState([
     {
@@ -515,8 +526,8 @@ export default function ModulesPage() {
                   <div
                     key={module.id}
                     className={`bg-white rounded-xl border-2 p-6 transition-all ${module.enabled
-                        ? 'border-emerald-200 shadow-sm hover:shadow-md'
-                        : 'border-gray-200 opacity-60 hover:opacity-100'
+                      ? 'border-emerald-200 shadow-sm hover:shadow-md'
+                      : 'border-gray-200 opacity-60 hover:opacity-100'
                       }`}
                   >
                     <div className="flex items-start justify-between mb-4">
@@ -540,8 +551,8 @@ export default function ModulesPage() {
 
                     <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${module.enabled
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-gray-100 text-gray-600'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-gray-600'
                         }`}>
                         {module.enabled ? 'Active' : 'Inactive'}
                       </span>
