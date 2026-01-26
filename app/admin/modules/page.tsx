@@ -3,6 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+interface Module {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color?: string;
+  enabled: boolean;
+  category: string;
+  configUrl?: string; // Optional URL for configuration page
+}
+
 export default function ModulesPage() {
   const [modules, setModules] = useState([
     {
@@ -395,7 +406,7 @@ export default function ModulesPage() {
   const categories = ['all', ...Array.from(new Set(modules.map(m => m.category)))];
 
   const toggleModule = (id: string) => {
-    setModules(modules.map(m => 
+    setModules(modules.map(m =>
       m.id === id ? { ...m, enabled: !m.enabled } : m
     ));
   };
@@ -406,11 +417,11 @@ export default function ModulesPage() {
 
   const filteredModules = modules.filter(module => {
     const matchesSearch = module.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         module.description.toLowerCase().includes(searchTerm.toLowerCase());
+      module.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || module.category === filterCategory;
-    const matchesStatus = filterStatus === 'all' || 
-                         (filterStatus === 'enabled' && module.enabled) ||
-                         (filterStatus === 'disabled' && !module.enabled);
+    const matchesStatus = filterStatus === 'all' ||
+      (filterStatus === 'enabled' && module.enabled) ||
+      (filterStatus === 'disabled' && !module.enabled);
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
@@ -509,16 +520,15 @@ export default function ModulesPage() {
                   ({categoryModules.filter(m => m.enabled).length}/{categoryModules.length} active)
                 </span>
               </h2>
-              
+
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {categoryModules.map((module) => (
                   <div
                     key={module.id}
-                    className={`bg-white rounded-xl border-2 p-6 transition-all ${
-                      module.enabled
+                    className={`bg-white rounded-xl border-2 p-6 transition-all ${module.enabled
                         ? 'border-emerald-200 shadow-sm hover:shadow-md'
                         : 'border-gray-200 opacity-60 hover:opacity-100'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className={`w-12 h-12 flex items-center justify-center bg-${module.color}-100 text-${module.color}-700 rounded-lg`}>
@@ -526,27 +536,24 @@ export default function ModulesPage() {
                       </div>
                       <button
                         onClick={() => toggleModule(module.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
-                          module.enabled ? 'bg-emerald-600' : 'bg-gray-300'
-                        }`}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${module.enabled ? 'bg-emerald-600' : 'bg-gray-300'
+                          }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            module.enabled ? 'translate-x-6' : 'translate-x-1'
-                          }`}
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${module.enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
                         />
                       </button>
                     </div>
-                    
+
                     <h3 className="text-lg font-bold text-gray-900 mb-2">{module.name}</h3>
                     <p className="text-sm text-gray-600 mb-4">{module.description}</p>
-                    
+
                     <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${
-                        module.enabled
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${module.enabled
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-gray-100 text-gray-600'
-                      }`}>
+                        }`}>
                         {module.enabled ? 'Active' : 'Inactive'}
                       </span>
                     </div>
