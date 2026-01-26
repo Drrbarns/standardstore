@@ -1,0 +1,350 @@
+'use client';
+
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import ProductCard from '@/components/ProductCard';
+
+export default function HomePage() {
+  const [email, setEmail] = useState('');
+  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]); // Dynamic Categories
+  const [loading, setLoading] = useState(true);
+
+  // Config State with Defaults
+  const [config, setConfig] = useState<any>({
+    hero: {
+      headline: 'Elevate Your Everyday Living',
+      subheadline: 'Discover thoughtfully curated products that blend timeless design with exceptional quality. Each piece is selected to bring beauty and purpose to your space.',
+      primaryButtonText: 'Shop Collection',
+      primaryButtonLink: '/shop',
+      secondaryButtonText: 'Learn More',
+      secondaryButtonLink: '/about',
+      backgroundImage: '' // Default handled in render
+    },
+    sections: {
+      newArrivals: { enabled: true, title: 'New Arrivals', count: 8 },
+      bestSellers: { enabled: true, title: 'Best Sellers', count: 8 }
+    },
+    banners: []
+  });
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+
+        // 0. Fetch Homepage Config
+        const { data: configData } = await supabase
+          .from('store_settings')
+          .select('value')
+          .eq('key', 'homepage_config')
+          .single();
+
+        let currentConfig = config;
+        if (configData) {
+          currentConfig = { ...config, ...configData.value };
+          setConfig(currentConfig);
+        }
+
+        // 1. Fetch featured or newest products (Dynamic based on config if we had sorting, for now defaults to Newest)
+        const limit = currentConfig.sections?.newArrivals?.count || 8;
+
+        const { data: productsData, error: productsError } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_images(url, position, alt_text)
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (productsError) console.error('Error fetching home products:', productsError);
+
+        if (productsData) {
+          const formatted = productsData.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            originalPrice: p.compare_at_price,
+            image: p.product_images?.find((img: any) => img.position === 0)?.url
+              || p.product_images?.[0]?.url
+              || 'https://via.placeholder.com/800x800?text=No+Image',
+            rating: p.rating_avg || 0,
+            reviewCount: p.review_count || 0,
+            slug: p.slug
+          }));
+          setFeaturedProducts(formatted);
+        }
+
+        // 2. Fetch Categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name, slug, image_url, metadata')
+          .eq('status', 'active')
+          .limit(4);
+
+        if (categoriesError) console.error('Error fetching categories:', categoriesError);
+
+        if (categoriesData && categoriesData.length > 0) {
+          setCategories(categoriesData.map(c => ({
+            id: c.id,
+            name: c.name,
+            image: c.image_url || 'https://via.placeholder.com/600',
+            count: 'Explore Collection', // We could do a count query but expensive
+            slug: c.slug
+          })));
+        } else {
+          // Fallback for demo if no categories in DB yet
+          setCategories([
+            { name: 'Home & Living', image: 'https://readdy.ai/api/search-image?query=elegant%20home%20living%20room%20setup%20with%20modern%20furniture%20cozy%20atmosphere%20natural%20materials%20cream%20and%20green%20tones%20premium%20interior%20design%20sophisticated%20lifestyle%20photography&width=600&height=600&seq=cat1&orientation=squarish', count: '120+ Items', slug: 'home-living' },
+            { name: 'Fashion & Accessories', image: 'https://readdy.ai/api/search-image?query=luxury%20fashion%20accessories%20leather%20bags%20scarves%20elegant%20arrangement%20on%20clean%20background%20premium%20quality%20sophisticated%20styling%20modern%20aesthetic%20product%20photography&width=600&height=600&seq=cat2&orientation=squarish', count: '85+ Items', slug: 'fashion' },
+            { name: 'Kitchen & Dining', image: 'https://readdy.ai/api/search-image?query=premium%20kitchen%20dining%20tableware%20ceramic%20plates%20wooden%20boards%20elegant%20table%20setting%20natural%20materials%20sophisticated%20home%20goods%20lifestyle%20photography&width=600&height=600&seq=cat3&orientation=squarish', count: '95+ Items', slug: 'kitchen' },
+            { name: 'Gifts & Decor', image: 'https://readdy.ai/api/search-image?query=curated%20gift%20collection%20decorative%20items%20vases%20candles%20elegant%20presentation%20premium%20quality%20sophisticated%20styling%20modern%20aesthetic%20lifestyle%20photography&width=600&height=600&seq=cat4&orientation=squarish', count: '110+ Items', slug: 'gifts' }
+          ]);
+        }
+
+      } catch (err) {
+        console.error('Unexpected error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    alert('Thank you for subscribing!');
+    setEmail('');
+  };
+
+  const getHeroImage = () => {
+    if (config.hero.backgroundImage) return config.hero.backgroundImage;
+    return "https://readdy.ai/api/search-image?query=elegant%20minimalist%20lifestyle%20flat%20lay%20composition%20featuring%20premium%20home%20decor%20items%20leather%20bag%20ceramic%20vases%20natural%20textiles%20on%20cream%20background%20with%20beautiful%20shadows%20sophisticated%20styling%20luxury%20product%20photography&width=1200&height=1400&seq=hero1&orientation=portrait";
+  };
+
+  // Render Banners
+  const renderBanners = () => {
+    if (!config.banners || config.banners.length === 0) return null;
+    return config.banners
+      .filter((b: any) => b.active)
+      .map((banner: any, i: number) => (
+        <div key={i} className="bg-emerald-900 text-white text-center py-2 px-4 text-sm font-medium">
+          {banner.text}
+        </div>
+      ));
+  };
+
+
+  return (
+    <main className="min-h-screen bg-white">
+
+      {/* Dynamic Banners (Top) - Optional placement */}
+      {renderBanners()}
+
+      {/* Hero Section */}
+      <section className="relative bg-gradient-to-br from-emerald-50 via-white to-cream-50 overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-emerald-300 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-amber-200 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-32">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="relative z-10 space-y-8">
+              <div className="inline-block">
+                <span className="bg-emerald-100 text-emerald-800 text-sm font-semibold px-4 py-2 rounded-full">New Season Collection</span>
+              </div>
+              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight">
+                {config.hero.headline}
+              </h1>
+              <p className="text-xl text-gray-600 leading-relaxed max-w-xl font-medium">
+                {config.hero.subheadline}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href={config.hero.primaryButtonLink || '/shop'} className="inline-flex items-center justify-center bg-gray-900 hover:bg-emerald-700 text-white px-8 py-4 rounded-lg font-semibold transition-colors text-lg whitespace-nowrap cursor-pointer shadow-lg shadow-gray-900/20">
+                  {config.hero.primaryButtonText}
+                  <i className="ri-arrow-right-line ml-2 text-xl"></i>
+                </Link>
+                {config.hero.secondaryButtonText && (
+                  <Link href={config.hero.secondaryButtonLink || '/shop'} className="inline-flex items-center justify-center border-2 border-gray-900 hover:border-emerald-700 hover:text-emerald-700 text-gray-900 px-8 py-4 rounded-lg font-semibold transition-colors text-lg whitespace-nowrap cursor-pointer bg-white/50 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none">
+                    {config.hero.secondaryButtonText}
+                  </Link>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-6 pt-8 border-t border-gray-200 lg:border-gray-200 border-gray-900/10">
+                <div>
+                  <p className="text-3xl font-bold text-gray-900">500+</p>
+                  <p className="text-sm text-gray-600 mt-1 font-medium">Premium Products</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-gray-900">50K+</p>
+                  <p className="text-sm text-gray-600 mt-1 font-medium">Happy Customers</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-gray-900">4.9★</p>
+                  <p className="text-sm text-gray-600 mt-1 font-medium">Customer Rating</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute inset-0 lg:static lg:h-[600px] flex items-center justify-end z-0 lg:z-auto overflow-hidden">
+              {/* Mobile Overlay */}
+              <div className="absolute inset-0 bg-white/85 sm:bg-white/75 lg:hidden z-10"></div>
+
+              <div className="relative w-full h-full lg:w-full">
+                <img
+                  src={getHeroImage()}
+                  alt="Hero Image"
+                  className="w-full h-full object-cover object-center lg:rounded-2xl lg:shadow-2xl"
+                />
+                <div className="hidden lg:block absolute bottom-8 left-8 bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-xl max-w-xs z-20">
+                  <p className="text-sm font-semibold text-emerald-700 mb-1">Special Offer</p>
+                  <p className="text-2xl font-bold text-gray-900 mb-1">25% Off</p>
+                  <p className="text-sm text-gray-600">On your first purchase</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories Section */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">Shop by Category</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">Explore our carefully curated collections</p>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {categories.map((category, index) => (
+              <Link
+                key={index}
+                href={`/shop?category=${category.slug}`}
+                className="group relative aspect-square rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-shadow cursor-pointer"
+              >
+                <img
+                  src={category.image}
+                  alt={category.name}
+                  className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                  <h3 className="text-xl font-bold mb-1">{category.name}</h3>
+                  <p className="text-sm text-white/90">{category.count}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* New Arrivals / Best Sellers Section */}
+      {config.sections?.newArrivals?.enabled && (
+        <section className="py-20 bg-gray-50" data-product-shop>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex items-end justify-between mb-12">
+              <div>
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">{config.sections.newArrivals.title}</h2>
+                <p className="text-lg text-gray-600">Explore the latest additions to our store</p>
+              </div>
+              <Link href="/shop" className="hidden sm:inline-flex items-center text-emerald-700 hover:text-emerald-900 font-semibold whitespace-nowrap cursor-pointer">
+                View All
+                <i className="ri-arrow-right-line ml-2"></i>
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {[1, 2, 3, 4].map(idx => (
+                  <div key={idx} className="bg-white rounded-xl overflow-hidden shadow-sm h-96 animate-pulse">
+                    <div className="h-64 bg-gray-200"></div>
+                    <div className="p-4 space-y-3">
+                      <div className="h-4 bg-gray-200 w-3/4"></div>
+                      <div className="h-4 bg-gray-200 w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : featuredProducts.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {featuredProducts.map((product) => (
+                  <ProductCard key={product.id} {...product} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No products found. Start adding products from the Admin Dashboard!</p>
+              </div>
+            )}
+
+            <div className="text-center mt-12">
+              <Link
+                href="/shop"
+                className="inline-flex items-center gap-2 bg-gray-900 hover:bg-emerald-700 text-white px-8 py-4 rounded-full font-medium transition-colors whitespace-nowrap cursor-pointer"
+              >
+                View All Products
+                <i className="ri-arrow-right-line"></i>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Features Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {[
+              { icon: 'ri-truck-line', title: 'Free Shipping', description: 'On orders over GH₵200' },
+              { icon: 'ri-arrow-left-right-line', title: 'Easy Returns', description: '30-day return policy' },
+              { icon: 'ri-customer-service-2-line', title: '24/7 Support', description: 'Dedicated customer service' },
+              { icon: 'ri-shield-check-line', title: 'Secure Payment', description: 'Safe & secure checkout' }
+            ].map((item, index) => (
+              <div key={index} className="text-center">
+                <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-emerald-100 rounded-full">
+                  <i className={`${item.icon} text-3xl text-emerald-700`}></i>
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
+                <p className="text-sm text-gray-600">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Newsletter Section */}
+      <section className="py-20 bg-gradient-to-br from-gray-900 to-gray-800">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <div className="w-16 h-16 flex items-center justify-center mx-auto mb-6 bg-emerald-600 rounded-full">
+            <i className="ri-mail-line text-3xl text-white"></i>
+          </div>
+          <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">Stay in the Loop</h2>
+          <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">
+            Subscribe to receive exclusive offers, new product launches, and inspiration
+          </p>
+          <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4 max-w-xl mx-auto">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
+              required
+              className="flex-1 px-6 py-4 rounded-lg text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-base"
+            />
+            <button
+              type="submit"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
+            >
+              Subscribe
+            </button>
+          </form>
+          <p className="text-sm text-gray-400 mt-4">Get 10% off your first order when you subscribe</p>
+        </div>
+      </section>
+    </main>
+  );
+}
