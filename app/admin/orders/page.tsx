@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import ProductSalesStats from './ProductSalesStats';
 
 interface Order {
   id: string;
@@ -44,6 +45,7 @@ export default function AdminOrdersPage() {
     { label: 'Delivered', count: 0, status: 'delivered' },
     { label: 'Cancelled', count: 0, status: 'cancelled' }
   ]);
+  const [showProductStats, setShowProductStats] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -236,10 +238,19 @@ export default function AdminOrdersPage() {
           <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
           <p className="text-gray-600 mt-1">Manage and track all customer orders</p>
         </div>
-        <button onClick={handleExportAll} className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer">
-          <i className="ri-download-line mr-2"></i>
-          Export Orders
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowProductStats(true)}
+            className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer shadow-sm"
+          >
+            <i className="ri-bar-chart-groupped-line mr-2"></i>
+            Sales Stats
+          </button>
+          <button onClick={handleExportAll} className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer shadow-sm">
+            <i className="ri-download-line mr-2"></i>
+            Export Orders
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -248,8 +259,8 @@ export default function AdminOrdersPage() {
             key={stat.status}
             onClick={() => setStatusFilter(stat.status)}
             className={`p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${statusFilter === stat.status
-                ? 'border-emerald-700 bg-emerald-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
+              ? 'border-emerald-700 bg-emerald-50'
+              : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
           >
             <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
@@ -455,6 +466,8 @@ export default function AdminOrdersPage() {
           </div>
         )}
       </div>
+
+      <ProductSalesStats isOpen={showProductStats} onClose={() => setShowProductStats(false)} />
     </div>
   );
 }
