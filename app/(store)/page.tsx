@@ -54,11 +54,12 @@ export default function HomePage() {
           .from('products')
           .select(`
             *,
-            product_images(url, position, alt_text)
+            product_images!product_id(url, position, alt_text)
           `)
           .eq('status', 'active')
           .order('created_at', { ascending: false })
-          .limit(limit);
+          .limit(limit)
+          .order('position', { foreignTable: 'product_images', ascending: true });
 
         if (productsError) console.error('Error fetching home products:', productsError);
 

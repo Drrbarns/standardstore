@@ -23,7 +23,7 @@ export default function LazyImage({
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (priority) return;
@@ -43,8 +43,8 @@ export default function LazyImage({
       }
     );
 
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
     }
 
     return () => observer.disconnect();
@@ -56,13 +56,12 @@ export default function LazyImage({
   };
 
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ width, height }}>
+    <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={{ width, height }}>
       {!isLoaded && (
         <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
       )}
       {isInView && (
         <img
-          ref={imgRef}
           src={src}
           alt={alt}
           className={`w-full h-full transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'
