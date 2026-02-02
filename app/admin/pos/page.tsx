@@ -40,6 +40,13 @@ export default function POSPage() {
     const [amountTendered, setAmountTendered] = useState<string>('');
     const [processing, setProcessing] = useState(false);
     const [completedOrder, setCompletedOrder] = useState<any>(null);
+    const [guestDetails, setGuestDetails] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        address: ''
+    });
 
     useEffect(() => {
         fetchData();
@@ -144,14 +151,32 @@ export default function POSPage() {
 
         try {
             // 1. Create Order
+            const shippingAddr = selectedCustomer ? {} : {
+                firstName: guestDetails.firstName,
+                lastName: guestDetails.lastName,
+                email: guestDetails.email,
+                phone: guestDetails.phone,
+                address: guestDetails.address
+            };
+
+            const orderMeta = selectedCustomer ? {} : {
+                guest_checkout: true,
+                first_name: guestDetails.firstName,
+                last_name: guestDetails.lastName,
+                phone: guestDetails.phone,
+                email: guestDetails.email
+            };
+
             const { data: order, error: orderError } = await supabase
                 .from('orders')
                 .insert({
-                    user_id: selectedCustomer?.id || null, // Allow guest/null if DB supports
+                    user_id: selectedCustomer?.id || null,
                     total: grandTotal,
                     status: 'completed',
-                    payment_intent: `POS-${Date.now()}`, // Fake transaction ID
-                    shipping_status: 'delivered', // Immediate delivery
+                    payment_intent: `POS-${Date.now()}`,
+                    shipping_status: 'delivered',
+                    shipping_address: shippingAddr,
+                    metadata: orderMeta
                 })
                 .select()
                 .single();
@@ -187,8 +212,16 @@ export default function POSPage() {
     const resetCheckout = () => {
         setShowCheckoutModal(false);
         setCompletedOrder(null);
+        setCompletedOrder(null);
         setAmountTendered('');
         setSelectedCustomer(null);
+        setGuestDetails({
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            address: ''
+        });
     };
 
     return (
@@ -400,15 +433,53 @@ export default function POSPage() {
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Customer (Optional)</label>
                                         <select
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none mb-4"
                                             onChange={(e) => setSelectedCustomer(customers.find(c => c.id === e.target.value) || null)}
                                             value={selectedCustomer?.id || ''}
                                         >
-                                            <option value="">Walk-in Customer</option>
+                                            <option value="">Walk-in Customer / Guest</option>
                                             {customers.map(c => (
                                                 <option key={c.id} value={c.id}>{c.full_name || c.email} ({c.email})</option>
                                             ))}
                                         </select>
+
+                                        {!selectedCustomer && (
+                                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-200 pb-2 mb-2">Guest Details</h4>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="First Name"
+                                                        value={guestDetails.firstName}
+                                                        onChange={e => setGuestDetails({ ...guestDetails, firstName: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Last Name"
+                                                        value={guestDetails.lastName}
+                                                        onChange={e => setGuestDetails({ ...guestDetails, lastName: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <input
+                                                        type="email"
+                                                        placeholder="Email (Optional)"
+                                                        value={guestDetails.email}
+                                                        onChange={e => setGuestDetails({ ...guestDetails, email: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
+                                                    />
+                                                    <input
+                                                        type="tel"
+                                                        placeholder="Phone (Optional)"
+                                                        value={guestDetails.phone}
+                                                        onChange={e => setGuestDetails({ ...guestDetails, phone: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Payment Method */}
