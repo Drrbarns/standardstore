@@ -12,14 +12,14 @@ interface LazyImageProps {
   onLoad?: () => void;
 }
 
-export default function LazyImage({ 
-  src, 
-  alt, 
-  className = '', 
-  width, 
-  height, 
+export default function LazyImage({
+  src,
+  alt,
+  className = '',
+  width,
+  height,
   priority = false,
-  onLoad 
+  onLoad
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
@@ -65,10 +65,10 @@ export default function LazyImage({
           ref={imgRef}
           src={src}
           alt={alt}
-          className={`w-full h-full transition-opacity duration-300 ${
-            isLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
+          className={`w-full h-full transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
           onLoad={handleLoad}
+          onError={handleLoad} // treat error as loaded to remove skeleton
           loading={priority ? 'eager' : 'lazy'}
         />
       )}

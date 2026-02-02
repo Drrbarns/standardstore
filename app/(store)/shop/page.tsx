@@ -60,8 +60,9 @@ function ShopContent() {
           .select(`
             *,
             categories!inner(name, slug),
-            product_images(url, position)
-          `, { count: 'exact' });
+            product_images!product_id(url, position)
+          `, { count: 'exact' })
+          .order('position', { foreignTable: 'product_images', ascending: true });
 
         const search = searchParams.get('search');
 
@@ -195,8 +196,8 @@ function ShopContent() {
                               setIsFilterOpen(false);
                             }}
                             className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === category.id
-                                ? 'bg-emerald-100 text-emerald-700 font-medium'
-                                : 'text-gray-700 hover:bg-gray-100'
+                              ? 'bg-emerald-100 text-emerald-700 font-medium'
+                              : 'text-gray-700 hover:bg-gray-100'
                               }`}
                           >
                             <div className="flex items-center justify-between">
@@ -243,8 +244,8 @@ function ShopContent() {
                               setPage(1);
                             }}
                             className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedRating === rating
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'text-gray-700 hover:bg-gray-100'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'text-gray-700 hover:bg-gray-100'
                               }`}
                           >
                             <div className="flex items-center space-x-2">
