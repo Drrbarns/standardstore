@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CheckoutSteps from '@/components/CheckoutSteps';
 import OrderSummary from '@/components/OrderSummary';
-import OrderBumpUpsell from '@/components/OrderBumpUpsell';
+// import OrderBumpUpsell from '@/components/OrderBumpUpsell';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 
@@ -35,26 +35,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('moolre');
   const [errors, setErrors] = useState<any>({});
 
-  // Upsells
-  const [upsellProducts, setUpsellProducts] = useState([
-    {
-      id: 'upsell1',
-      name: 'Leather Care Kit',
-      price: 45,
-      originalPrice: 65,
-      image: 'https://readdy.ai/api/search-image?query=premium%20leather%20care%20kit%20with%20cleaner%20and%20conditioner%20in%20elegant%20packaging%20on%20white%20background%20professional%20product%20photography%20luxury%20accessories%20maintenance&width=400&height=400&seq=upsell1&orientation=squarish',
-      description: 'Keep your leather products looking new',
-      selected: false
-    },
-    {
-      id: 'upsell2',
-      name: 'Gift Wrapping Service',
-      price: 15,
-      image: 'https://readdy.ai/api/search-image?query=luxury%20gift%20wrapping%20service%20elegant%20box%20with%20ribbon%20and%20decorative%20elements%20on%20white%20background%20premium%20packaging%20professional%20photography&width=400&height=400&seq=upsell2&orientation=squarish',
-      description: 'Make it gift-ready with premium wrapping',
-      selected: false
-    }
-  ]);
+
 
   // Check auth and cart
   useEffect(() => {
@@ -78,11 +59,8 @@ export default function CheckoutPage() {
     return () => clearTimeout(timer);
   }, [cart, router, isLoading]);
 
-  const selectedUpsells = upsellProducts.filter(p => p.selected);
-  const upsellTotal = selectedUpsells.reduce((sum, p) => sum + p.price, 0);
-
   // Calculate Totals
-  const subtotal = cartSubtotal + upsellTotal;
+  const subtotal = cartSubtotal;
   const shippingCost = deliveryMethod === 'express' ? 25 : deliveryMethod === 'standard' ? 15 : 0;
   const tax = subtotal * 0.125; // 12.5% Tax
   const total = subtotal + shippingCost + tax;
@@ -112,14 +90,10 @@ export default function CheckoutPage() {
     setCurrentStep(3);
   };
 
-  const toggleUpsell = (id: string) => {
-    setUpsellProducts(upsellProducts.map(p =>
-      p.id === id ? { ...p, selected: !p.selected } : p
-    ));
-  };
+
 
   const handlePlaceOrder = async () => {
-    if (cart.length === 0 && selectedUpsells.length === 0) {
+    if (cart.length === 0) {
       alert('Your cart is empty');
       return;
     }
@@ -173,17 +147,6 @@ export default function CheckoutPage() {
           metadata: {
             image: item.image,
             slug: item.slug
-          }
-        })),
-        ...selectedUpsells.map(item => ({
-          order_id: order.id,
-          product_name: item.name,
-          quantity: 1,
-          unit_price: item.price,
-          total_price: item.price,
-          metadata: {
-            is_upsell: true,
-            description: item.description
           }
         }))
       ];
@@ -250,7 +213,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (cart.length === 0 && selectedUpsells.length === 0 && !isLoading) {
+  if (cart.length === 0 && !isLoading) {
     return (
       <main className="min-h-screen bg-gray-50 py-20">
         <div className="max-w-md mx-auto text-center px-4">
@@ -478,10 +441,7 @@ export default function CheckoutPage() {
                   </button>
                 </div>
 
-                <OrderBumpUpsell
-                  products={upsellProducts}
-                  onToggle={toggleUpsell}
-                />
+
               </>
             )}
 
@@ -564,10 +524,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <OrderBumpUpsell
-                  products={upsellProducts}
-                  onToggle={toggleUpsell}
-                />
+
               </>
             )}
 
@@ -671,7 +628,7 @@ export default function CheckoutPage() {
 
           <div className="lg:col-span-1">
             <OrderSummary
-              items={[...cart, ...selectedUpsells.map(u => ({ ...u, quantity: 1, variant: undefined, slug: u.id, maxStock: 60 }))]} // Map upsells to match shape roughly
+              items={cart}
               subtotal={subtotal}
               shipping={shippingCost}
               tax={tax}
