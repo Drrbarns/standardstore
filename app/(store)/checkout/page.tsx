@@ -112,7 +112,7 @@ export default function CheckoutPage() {
           email: shippingData.email,
           phone: shippingData.phone,
           status: 'pending',
-          payment_status: paymentMethod === 'cod' ? 'pending' : 'awaiting_payment',
+          payment_status: 'pending',
           currency: 'GHS',
           subtotal: subtotal,
           tax_total: tax,
