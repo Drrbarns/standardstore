@@ -302,7 +302,7 @@ export default function CheckoutPage() {
                   <h2 className="text-xl font-bold text-gray-900 mb-6">Shipping Information</h2>
 
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">
                           First Name *
@@ -379,7 +379,7 @@ export default function CheckoutPage() {
                       {errors.address && <p className="text-sm text-red-600 mt-1">{errors.address}</p>}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">
                           City *
@@ -514,7 +514,7 @@ export default function CheckoutPage() {
                     </label>
                   </div>
 
-                  <div className="flex space-x-4 mt-6">
+                  <div className="flex flex-col-reverse md:flex-row gap-4 mt-6">
                     <button
                       onClick={() => setCurrentStep(1)}
                       className="flex-1 border-2 border-gray-300 hover:border-gray-400 text-gray-700 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
@@ -611,7 +611,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div className="flex space-x-4 mt-6">
+                <div className="flex flex-col-reverse md:flex-row gap-4 mt-6">
                   <button
                     onClick={() => setCurrentStep(2)}
                     className="flex-1 border-2 border-gray-300 hover:border-gray-400 text-gray-700 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
