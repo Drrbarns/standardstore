@@ -166,8 +166,8 @@ export default function Footer() {
                 Secure Payment
               </span>
               <span className="flex items-center gap-2">
-                <i className="ri-truck-line text-emerald-500"></i>
-                Fast Delivery
+                <i className="ri-store-2-line text-emerald-500"></i>
+                Store Pickup
               </span>
               <span className="flex items-center gap-2">
                 <i className="ri-customer-service-line text-emerald-500"></i>

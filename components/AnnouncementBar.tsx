@@ -75,7 +75,7 @@ export default function AnnouncementBar() {
         // Show default banner if no custom banners
         return (
             <div className="bg-emerald-800 text-white py-2 text-center text-sm">
-                <p>Free Shipping on Orders Over GH₵200 | Shop Now & Save</p>
+                <p>Free Store Pickup Available | Order Online, Pick Up Today</p>
             </div>
         );
     }

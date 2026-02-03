@@ -300,7 +300,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
             {[
-              { icon: 'ri-truck-line', title: 'Free Shipping', description: 'Orders over GH₵200' },
+              { icon: 'ri-store-2-line', title: 'Free Store Pickup', description: 'Pick up at our store' },
               { icon: 'ri-arrow-left-right-line', title: 'Easy Returns', description: '30-day return policy' },
               { icon: 'ri-customer-service-2-line', title: '24/7 Support', description: 'Dedicated service' },
               { icon: 'ri-shield-check-line', title: 'Secure Payment', description: 'Safe checkout' }

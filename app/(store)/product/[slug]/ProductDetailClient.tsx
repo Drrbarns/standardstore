@@ -352,8 +352,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 <div className="border-t border-gray-200 pt-6 space-y-4">
                   <div className="flex items-center text-gray-700">
-                    <i className="ri-truck-line text-xl text-emerald-700 mr-3"></i>
-                    <span>Free shipping on orders over GH₵200</span>
+                    <i className="ri-store-2-line text-xl text-emerald-700 mr-3"></i>
+                    <span>Free store pickup available</span>
                   </div>
                   {product.isPreorder && (
                     <div className="flex items-center text-gray-700 font-medium text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
