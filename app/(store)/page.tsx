@@ -231,6 +231,10 @@ export default function HomePage() {
                   src={category.image}
                   alt={category.name}
                   className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = 'https://via.placeholder.com/600?text=' + encodeURIComponent(category.name);
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
