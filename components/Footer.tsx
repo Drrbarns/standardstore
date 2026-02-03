@@ -81,7 +81,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
           <div className="col-span-2">
-            <div className="font-['Pacifico'] text-3xl text-white mb-4">{siteName}</div>
+            <Link href="/" className="inline-block mb-6">
+              <img src="/sarahlawson.png" alt={siteName} className="h-12 w-auto object-contain bg-white px-2 py-1 rounded-lg" />
+            </Link>
             <p className="text-gray-400 mb-6 leading-relaxed">
               {siteTagline}
             </p>

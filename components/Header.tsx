@@ -73,10 +73,10 @@ export default function Header() {
                 </button>
                 <Link
                   href="/"
-                  className="text-2xl font-['Pacifico'] text-gray-900 hover:text-emerald-700 transition-colors"
+                  className="flex items-center"
                   aria-label="Go to homepage"
                 >
-                  {siteName}
+                  <img src="/sarahlawson.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" />
                 </Link>
               </div>
 
@@ -264,7 +264,9 @@ export default function Header() {
           />
           <div className="absolute top-0 left-0 bottom-0 w-4/5 max-w-xs bg-white shadow-xl flex flex-col animate-in slide-in-from-left duration-300">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-xl font-['Pacifico'] text-gray-900">{siteName}</span>
+              <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
+                <img src="/sarahlawson.png" alt={siteName} className="h-8 w-auto object-contain" />
+              </Link>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-2 -mr-2 text-gray-500 hover:text-gray-900"
