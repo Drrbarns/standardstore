@@ -71,10 +71,6 @@ export default function AdminOrdersPage() {
           created_at,
           phone,
           shipping_address,
-          profiles (
-            full_name,
-            email
-          ),
           order_items (
             quantity
           )
@@ -108,14 +104,16 @@ export default function AdminOrdersPage() {
     'processing': 'bg-blue-100 text-blue-700 border-blue-200',
     'shipped': 'bg-purple-100 text-purple-700 border-purple-200',
     'delivered': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    'cancelled': 'bg-red-100 text-red-700 border-red-200'
+    'cancelled': 'bg-red-100 text-red-700 border-red-200',
+    'awaiting_payment': 'bg-gray-100 text-gray-700 border-gray-200'
   };
 
   const formatStatus = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
+    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
   };
 
   const getCustomerName = (order: Order) => {
+    if (order.shipping_address?.full_name) return order.shipping_address.full_name;
     if (order.profiles?.full_name) return order.profiles.full_name;
     if (order.email) {
       const name = order.email.split('@')[0];
@@ -125,7 +123,7 @@ export default function AdminOrdersPage() {
   };
 
   const getCustomerEmail = (order: Order) => {
-    return order.profiles?.email || order.email || 'N/A';
+    return order.email || order.profiles?.email || 'N/A';
   };
 
   const getCustomerAvatar = (order: Order) => {

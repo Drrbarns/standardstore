@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import FraudDetectionAlert from '@/components/FraudDetectionAlert';
 
 interface OrderDetailClientProps {
   orderId: string;
 }
-
 
 type RiskLevel = 'low' | 'medium' | 'high';
 
@@ -17,94 +17,150 @@ interface FraudAnalysis {
 }
 
 export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
-  const [orderStatus, setOrderStatus] = useState('Processing');
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [trackingNumber, setTrackingNumber] = useState('TRK-2024-8573');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
-  const order = {
-    id: orderId,
-    date: 'Dec 20, 2024 10:30 AM',
-    status: 'Processing',
-    customer: {
-      name: 'Ama Osei',
-      email: 'ama.osei@example.com',
-      phone: '+233 24 123 4567',
-      avatar: 'AO'
-    },
-    shipping: {
-      address: '23 Nkrumah Avenue',
-      city: 'Accra',
-      region: 'Greater Accra',
-      postalCode: 'GA-123-4567',
-      country: 'Ghana',
-      method: 'Express Delivery (2-3 days)',
-      cost: 25.00
-    },
-    billing: {
-      address: '23 Nkrumah Avenue',
-      city: 'Accra',
-      region: 'Greater Accra',
-      postalCode: 'GA-123-4567',
-      country: 'Ghana'
-    },
-    payment: {
-      method: 'Moolre',
-      status: 'Paid',
-      transactionId: 'MOOL-2024-XY789',
-      paidAt: 'Dec 20, 2024 10:31 AM'
-    },
-    items: [
-      {
-        id: 1,
-        name: 'Premium Leather Crossbody Bag',
-        image: 'https://readdy.ai/api/search-image?query=elegant%20premium%20leather%20crossbody%20bag%20in%20deep%20forest%20green%20color%20on%20clean%20minimal%20white%20studio%20background&width=200&height=200&seq=orddet1&orientation=squarish',
-        variant: 'Color: Forest Green',
-        sku: 'LCB-FG-001',
-        quantity: 1,
-        price: 289.00
-      },
-      {
-        id: 2,
-        name: 'Designer Brass Table Lamp',
-        image: 'https://readdy.ai/api/search-image?query=contemporary%20designer%20brass%20table%20lamp%20with%20elegant%20silhouette%20on%20pure%20white%20background&width=200&height=200&seq=orddet2&orientation=squarish',
-        variant: 'Size: Medium',
-        sku: 'BTL-M-002',
-        quantity: 1,
-        price: 149.00
+  useEffect(() => {
+    fetchOrderDetails();
+  }, [orderId]);
+
+  const fetchOrderDetails = async () => {
+    try {
+      setLoading(true);
+      // Try to fetch by ID or order_number
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            product_id,
+            product_name,
+            variant_name,
+            sku,
+            quantity,
+            unit_price,
+            total_price,
+            metadata
+          )
+        `)
+        .eq('id', orderId);
+
+      let { data, error } = await query.single();
+
+      if (error && error.code === 'PGRST116') {
+        // Not found by ID, try order_number
+        const { data: dataByNum, error: errorByNum } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (
+              id,
+              product_id,
+              product_name,
+              variant_name,
+              sku,
+              quantity,
+              unit_price,
+              total_price,
+              metadata
+            )
+          `)
+          .eq('order_number', orderId)
+          .single();
+
+        if (dataByNum) {
+          data = dataByNum;
+          error = null;
+        } else {
+          error = errorByNum;
+        }
       }
-    ],
-    subtotal: 438.00,
-    shippingCost: 25.00,
-    tax: 37.00,
-    discount: 50.00,
-    total: 450.00,
-    timeline: [
-      { status: 'Order Placed', date: 'Dec 20, 2024 10:30 AM', completed: true },
-      { status: 'Payment Confirmed', date: 'Dec 20, 2024 10:31 AM', completed: true },
-      { status: 'Processing', date: 'Dec 20, 2024 11:00 AM', completed: true },
-      { status: 'Shipped', date: '', completed: false },
-      { status: 'Out for Delivery', date: '', completed: false },
-      { status: 'Delivered', date: '', completed: false }
-    ]
+
+      if (error) throw error;
+      setOrder(data);
+      setTrackingNumber(data.metadata?.tracking_number || '');
+      setAdminNotes(data.notes || '');
+
+    } catch (err: any) {
+      console.error('Error fetching order:', err);
+      setError('Failed to load order details');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const statusOptions = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+  const handleUpdateStatus = async (newStatus?: string) => {
+    try {
+      setStatusUpdating(true);
+      const statusToUpdate = newStatus || order.status;
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: statusToUpdate,
+          notes: adminNotes,
+          metadata: {
+            ...order.metadata,
+            tracking_number: trackingNumber
+          }
+        })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setOrder({
+        ...order,
+        status: statusToUpdate,
+        notes: adminNotes,
+        metadata: { ...order.metadata, tracking_number: trackingNumber }
+      });
+      alert('Order updated successfully');
+      setShowStatusMenu(false);
+    } catch (err) {
+      console.error('Error updating order:', err);
+      alert('Failed to update order');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const statusOptions = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
   const statusColors: any = {
-    'Pending': 'bg-amber-100 text-amber-700 border-amber-200',
-    'Processing': 'bg-blue-100 text-blue-700 border-blue-200',
-    'Shipped': 'bg-purple-100 text-purple-700 border-purple-200',
-    'Delivered': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    'Cancelled': 'bg-red-100 text-red-700 border-red-200'
+    'pending': 'bg-amber-100 text-amber-700 border-amber-200',
+    'processing': 'bg-blue-100 text-blue-700 border-blue-200',
+    'shipped': 'bg-purple-100 text-purple-700 border-purple-200',
+    'delivered': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'cancelled': 'bg-red-100 text-red-700 border-red-200',
+    'awaiting_payment': 'bg-gray-100 text-gray-700 border-gray-200'
   };
 
+  if (loading) return <div className="p-8 text-center">Loading...</div>;
+  if (error || !order) return <div className="p-8 text-center text-red-500">{error || 'Order not found'}</div>;
+
+  const currentStatus = order.status || 'pending';
+  const shippingAddress = order.shipping_address || {};
+  const customerName = shippingAddress.full_name || order.email.split('@')[0];
+
+  // Derive timeline from status (simplified logic as we don't have full history table joined here yet)
+  const timeline = [
+    { status: 'Order Placed', date: new Date(order.created_at).toLocaleString(), completed: true },
+    { status: 'Payment', date: order.payment_status, completed: order.payment_status === 'paid' },
+    { status: 'Processing', date: '', completed: ['processing', 'shipped', 'delivered'].includes(order.status) },
+    { status: 'Shipped', date: '', completed: ['shipped', 'delivered'].includes(order.status) },
+    { status: 'Delivered', date: '', completed: order.status === 'delivered' }
+  ];
+
+  // Mock fraud analysis for now (or implement real logic later)
   const fraudAnalysis: FraudAnalysis = {
-    riskLevel: 'medium',
-    reasons: [
-      'First-time customer with high-value order',
-      'Shipping address different from billing address',
-      'Multiple payment attempts detected'
-    ]
+    riskLevel: 'low',
+    reasons: []
   };
 
   return (
@@ -123,22 +179,23 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900">Order Items</h2>
-                <span className="text-gray-600">{order.items.length} items</span>
+                <span className="text-gray-600">{order.order_items?.length || 0} items</span>
               </div>
 
               <div className="space-y-4">
-                {order.items.map((item) => (
+                {order.order_items?.map((item: any) => (
                   <div key={item.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="w-20 h-20 bg-white rounded-lg overflow-hidden border border-gray-200">
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                    <div className="w-20 h-20 bg-white rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center">
+                      {/* Placeholder image since not stored in order items usually, unless joined from products */}
+                      <i className="ri-image-line text-2xl text-gray-300"></i>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">{item.name}</h3>
-                      <p className="text-sm text-gray-600 mb-1">{item.variant}</p>
+                      <h3 className="font-semibold text-gray-900 mb-1">{item.product_name}</h3>
+                      <p className="text-sm text-gray-600 mb-1">{item.variant_name}</p>
                       <p className="text-xs text-gray-500">SKU: {item.sku}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900 mb-1">GH₵ {item.price.toFixed(2)}</p>
+                      <p className="font-semibold text-gray-900 mb-1">GH₵ {item.unit_price?.toFixed(2)}</p>
                       <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                     </div>
                   </div>
@@ -148,25 +205,25 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
                 <div className="flex justify-between text-gray-700">
                   <span>Subtotal</span>
-                  <span>GH₵ {order.subtotal.toFixed(2)}</span>
+                  <span>GH₵ {order.subtotal?.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700">
-                  <span>Shipping ({order.shipping.method})</span>
-                  <span>GH₵ {order.shippingCost.toFixed(2)}</span>
+                  <span>Shipping</span>
+                  <span>GH₵ {order.shipping_total?.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700">
-                  <span>Tax (VAT)</span>
-                  <span>GH₵ {order.tax.toFixed(2)}</span>
+                  <span>Tax</span>
+                  <span>GH₵ {order.tax_total?.toFixed(2)}</span>
                 </div>
-                {order.discount > 0 && (
+                {order.discount_total > 0 && (
                   <div className="flex justify-between text-emerald-700 font-semibold">
                     <span>Discount</span>
-                    <span>-GH₵ {order.discount.toFixed(2)}</span>
+                    <span>-GH₵ {order.discount_total?.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xl font-bold text-gray-900 pt-3 border-t border-gray-200">
                   <span>Total</span>
-                  <span>GH₵ {order.total.toFixed(2)}</span>
+                  <span>GH₵ {order.total?.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -174,7 +231,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Order Timeline</h2>
               <div className="space-y-4">
-                {order.timeline.map((event, index) => (
+                {timeline.map((event, index) => (
                   <div key={index} className="flex items-start space-x-4">
                     <div className={`w-10 h-10 flex items-center justify-center rounded-full border-2 ${event.completed ? 'bg-emerald-700 border-emerald-700' : 'bg-white border-gray-300'
                       }`}>
@@ -204,9 +261,9 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               <div className="relative">
                 <button
                   onClick={() => setShowStatusMenu(!showStatusMenu)}
-                  className={`w-full px-4 py-3 rounded-lg border-2 font-semibold text-left flex items-center justify-between ${statusColors[orderStatus]}`}
+                  className={`w-full px-4 py-3 rounded-lg border-2 font-semibold text-left flex items-center justify-between ${statusColors[currentStatus] || 'bg-gray-100'}`}
                 >
-                  <span>{orderStatus}</span>
+                  <span className="capitalize">{currentStatus}</span>
                   <i className="ri-arrow-down-s-line text-xl"></i>
                 </button>
                 {showStatusMenu && (
@@ -215,10 +272,9 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                       <button
                         key={status}
                         onClick={() => {
-                          setOrderStatus(status);
-                          setShowStatusMenu(false);
+                          handleUpdateStatus(status);
                         }}
-                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${status === orderStatus ? 'bg-emerald-50 font-semibold' : ''
+                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors capitalize ${status === currentStatus ? 'bg-emerald-50 font-semibold' : ''
                           }`}
                       >
                         {status}
@@ -240,38 +296,37 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                 />
               </div>
 
-              <button className="w-full mt-4 bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-semibold transition-colors whitespace-nowrap">
-                Update Status
+              <button
+                onClick={() => handleUpdateStatus()}
+                disabled={statusUpdating}
+                className="w-full mt-4 bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-semibold transition-colors whitespace-nowrap disabled:opacity-50"
+              >
+                {statusUpdating ? 'Updating...' : 'Update Status'}
               </button>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Customer</h2>
               <div className="flex items-start space-x-3 mb-4">
-                <div className="w-12 h-12 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-full font-semibold">
-                  {order.customer.avatar}
+                <div className="w-12 h-12 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-full font-semibold uppercase">
+                  {customerName.substring(0, 2)}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">{order.customer.name}</p>
-                  <p className="text-sm text-gray-600">{order.customer.email}</p>
-                  <p className="text-sm text-gray-600">{order.customer.phone}</p>
+                  <p className="font-semibold text-gray-900">{customerName}</p>
+                  <p className="text-sm text-gray-600">{order.email}</p>
+                  <p className="text-sm text-gray-600">{shippingAddress.phone || order.phone}</p>
                 </div>
               </div>
-              <Link
-                href={`/admin/customers/${order.customer.email}`}
-                className="text-emerald-700 hover:text-emerald-800 font-medium text-sm whitespace-nowrap"
-              >
-                View Customer Profile <i className="ri-arrow-right-line ml-1"></i>
-              </Link>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Shipping Address</h2>
               <div className="text-gray-700 space-y-1">
-                <p>{order.shipping.address}</p>
-                <p>{order.shipping.city}, {order.shipping.region}</p>
-                <p>{order.shipping.postalCode}</p>
-                <p className="font-semibold">{order.shipping.country}</p>
+                <p>{shippingAddress.address_line1}</p>
+                {shippingAddress.address_line2 && <p>{shippingAddress.address_line2}</p>}
+                <p>{shippingAddress.city}, {shippingAddress.state}</p>
+                <p>{shippingAddress.postal_code}</p>
+                <p className="font-semibold">{shippingAddress.country}</p>
               </div>
             </div>
 
@@ -280,21 +335,20 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Method</span>
-                  <span className="font-semibold text-gray-900">{order.payment.method}</span>
+                  <span className="font-semibold text-gray-900 capitalize">{order.payment_method}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Status</span>
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-semibold whitespace-nowrap">
-                    {order.payment.status}
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-semibold whitespace-nowrap capitalize">
+                    {order.payment_status}
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  {/* Transaction ID might be in metadata depending on callback */}
                   <span className="text-gray-600">Transaction</span>
-                  <span className="text-sm text-gray-900 font-mono">{order.payment.transactionId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Paid At</span>
-                  <span className="text-sm text-gray-900">{order.payment.paidAt}</span>
+                  <span className="text-sm text-gray-900 font-mono truncate max-w-[150px]">
+                    {order.metadata?.moolre_reference || order.payment_transaction_id || 'N/A'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -309,7 +363,11 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                 maxLength={500}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
               />
-              <button className="w-full mt-3 bg-gray-700 hover:bg-gray-800 text-white py-2 rounded-lg font-medium transition-colors whitespace-nowrap">
+              <button
+                onClick={() => handleUpdateStatus()}
+                disabled={statusUpdating}
+                className="w-full mt-3 bg-gray-700 hover:bg-gray-800 text-white py-2 rounded-lg font-medium transition-colors whitespace-nowrap disabled:opacity-50"
+              >
                 Save Note
               </button>
             </div>
