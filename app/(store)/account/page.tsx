@@ -213,7 +213,7 @@ function AccountContent() {
 
             {/* Mobile Horizontal Navigation */}
             <div className="lg:hidden col-span-1 pb-2">
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {[
                   { id: 'profile', icon: 'ri-user-settings-line', label: 'Profile' },
                   { id: 'orders', icon: 'ri-shopping-bag-3-line', label: 'Orders' },
