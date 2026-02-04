@@ -88,61 +88,30 @@ const CMSContext = createContext<CMSContextType>({
 });
 
 export function CMSProvider({ children }: { children: ReactNode }) {
-    const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
+    const [settings, setSettings] = useState<SiteSettings>({
+        site_name: 'Sarah Lawson Imports',
+        site_tagline: 'Premium Quality Products For Less.',
+        site_logo: '/logo.png',
+        contact_email: 'info@sarahlawsonimports.com',
+        contact_phone: '+233 20 963 6158',
+        contact_address: 'Accra, Ghana',
+        social_facebook: 'https://facebook.com/besamebeauty',
+        social_instagram: 'https://instagram.com/besamebeauty',
+        social_twitter: 'https://twitter.com/besamebeauty',
+        primary_color: '#FBF6F2',
+        secondary_color: '#A14F57',
+        currency: 'GHS',
+        currency_symbol: 'GH₵',
+    });
     const [content, setContent] = useState<CMSContent[]>([]);
     const [banners, setBanners] = useState<Banner[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
-    const fetchCMSData = async () => {
-        try {
-            // Fetch site settings
-            const { data: settingsData } = await supabase
-                .from('site_settings')
-                .select('key, value');
+    // CMS Fetching Logic Removed - Content is now managed in code.
+    const fetchCMSData = async () => { };
 
-            if (settingsData) {
-                const settingsObj: SiteSettings = { ...defaultSettings };
-                settingsData.forEach((item: { key: string; value: any }) => {
-                    try {
-                        settingsObj[item.key] = typeof item.value === 'string'
-                            ? JSON.parse(item.value)
-                            : item.value;
-                    } catch {
-                        settingsObj[item.key] = item.value;
-                    }
-                });
-                setSettings(settingsObj);
-            }
-
-            // Fetch CMS content
-            const { data: contentData } = await supabase
-                .from('cms_content')
-                .select('*')
-                .eq('is_active', true);
-
-            if (contentData) {
-                setContent(contentData);
-            }
-
-            // Fetch banners
-            const { data: bannersData } = await supabase
-                .from('banners')
-                .select('*')
-                .eq('is_active', true)
-                .order('sort_order');
-
-            if (bannersData) {
-                setBanners(bannersData);
-            }
-        } catch (error) {
-            console.error('Error fetching CMS data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // Initial load handled by state defaults
     useEffect(() => {
-        fetchCMSData();
     }, []);
 
     const getContent = (section: string, blockKey: string): CMSContent | undefined => {

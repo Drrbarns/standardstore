@@ -3,8 +3,8 @@ import { CartProvider } from "@/context/CartContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Premium E-Commerce Store - Shop Quality Products",
-  description: "Discover amazing products at unbeatable prices. Fast shipping, secure checkout, and exceptional customer service.",
+  title: "Sarah Lawson Imports - Premium Quality Products",
+  description: "Discover naturally made skincare and premium goods at Sarah Lawson Imports. Crafted with care and delivered with love.",
 };
 
 export default function RootLayout({

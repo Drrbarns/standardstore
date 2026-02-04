@@ -1,126 +1,27 @@
-﻿
+
 > next-app@0.1.0 build
 > next build
 
-   Γû▓ Next.js 15.3.2
+   ▲ Next.js 15.1.11
    - Environments: .env.local
 
    Creating an optimized production build ...
- Γ£ô Compiled successfully in 41s
-   Linting and checking validity of types ...
-
-./app/(store)/page.tsx
-115:6  Warning: React Hook useEffect has a missing dependency: 'config'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./app/admin/products/page.tsx
-34:6  Warning: React Hook useEffect has a missing dependency: 'fetchProducts'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./app/layout.tsx
-24:9  Warning: Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
-25:9  Warning: Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
-
-./components/AccessibilityMenu.tsx
-28:6  Warning: React Hook useEffect has a missing dependency: 'applySettings'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./components/AdvancedSearch.tsx
-96:6  Warning: React Hook useEffect has a missing dependency: 'allProducts'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./components/FlashSaleBanner.tsx
-44:6  Warning: React Hook useEffect has a missing dependency: 'flashSale.endTime'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./components/LiveSalesNotification.tsx
-40:6  Warning: React Hook useEffect has a missing dependency: 'salesData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./components/ProductReviews.tsx
-43:6  Warning: React Hook useEffect has a missing dependency: 'fetchReviews'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-./components/SessionTimeoutWarning.tsx
-44:6  Warning: React Hook useEffect has missing dependencies: 'IDLE_TIMEOUT' and 'WARNING_TIME'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
-
-./components/SmartRecommendations.tsx
-65:6  Warning: React Hook useEffect has a missing dependency: 'allProducts'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-
-info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+ ✓ Compiled successfully
+   Skipping validation of types
+   Skipping linting
    Collecting page data ...
-   Generating static pages (0/60) ...
-   Generating static pages (15/60) 
-   Generating static pages (30/60) 
-   Generating static pages (45/60) 
- Γ£ô Generating static pages (60/60)
-   Finalizing page optimization ...
-   Collecting build traces ...
-
-Route (app)                                 Size  First Load JS
-Γöî Γùï /                                    5.27 kB         160 kB
-Γö£ Γùï /_not-found                            158 B         102 kB
-Γö£ Γùï /about                               3.54 kB         108 kB
-Γö£ Γùï /account                             4.72 kB         164 kB
-Γö£ Γùï /account/privacy                     2.63 kB         108 kB
-Γö£ Γùï /account/verify-email                1.75 kB         107 kB
-Γö£ Γùï /account/verify-phone                1.85 kB         107 kB
-Γö£ Γùï /admin                               2.78 kB         157 kB
-Γö£ Γùï /admin/analytics                      121 kB         233 kB
-Γö£ Γùï /admin/blog                          3.51 kB         108 kB
-Γö£ Γùï /admin/categories                    3.44 kB         155 kB
-Γö£ Γùï /admin/cms                           2.57 kB         108 kB
-Γö£ Γùï /admin/cms/media                      2.2 kB         104 kB
-Γö£ Γùï /admin/cms/navigation                 1.7 kB         103 kB
-Γö£ Γùï /admin/cms/pages                     2.98 kB         154 kB
-Γö£ Γùï /admin/coupons                       2.71 kB         104 kB
-Γö£ Γùï /admin/customer-insights             3.29 kB         158 kB
-Γö£ Γùï /admin/customers                      2.5 kB         107 kB
-Γö£ Γùï /admin/homepage                      3.28 kB         154 kB
-Γö£ Γùï /admin/inventory                     3.62 kB         109 kB
-Γö£ Γùï /admin/login                            2 kB         157 kB
-Γö£ Γùï /admin/modules                       3.93 kB         106 kB
-Γö£ Γùï /admin/orders                        3.28 kB         108 kB
-Γö£ ΓùÅ /admin/orders/[id]                   3.41 kB         108 kB
-Γö£   Γö£ /admin/orders/ORD-2024-324
-Γö£   Γö£ /admin/orders/ORD-2024-323
-Γö£   Γöö /admin/orders/ORD-2024-322
-Γö£ Γùï /admin/products                      3.79 kB         158 kB
-Γö£ ╞Æ /admin/products/[id]                   806 B         160 kB
-Γö£ Γùï /admin/products/new                    265 B         160 kB
-Γö£ Γùï /admin/reviews                       3.19 kB         108 kB
-Γö£ Γùï /admin/settings                      3.07 kB         105 kB
-Γö£ Γùï /auth/forgot-password                1.33 kB         106 kB
-Γö£ Γùï /auth/login                          2.31 kB         157 kB
-Γö£ Γùï /auth/signup                         3.38 kB         158 kB
-Γö£ Γùï /blog                                  186 B         105 kB
-Γö£ ΓùÅ /blog/[id]                             186 B         105 kB
-Γö£   Γö£ /blog/1
-Γö£   Γö£ /blog/2
-Γö£   Γöö /blog/3
-Γö£ Γùï /cart                                5.16 kB         110 kB
-Γö£ Γùï /categories                            186 B         105 kB
-Γö£ Γùï /checkout                            6.28 kB         161 kB
-Γö£ Γùï /contact                             3.25 kB         105 kB
-Γö£ Γùï /faqs                                4.33 kB         109 kB
-Γö£ Γùï /help                                2.74 kB         162 kB
-Γö£ ╞Æ /help/article/[id]                   2.83 kB         162 kB
-Γö£ Γùï /maintenance                           158 B         102 kB
-Γö£ Γùï /offline                             1.21 kB         106 kB
-Γö£ Γùï /order-success                       5.98 kB         160 kB
-Γö£ Γùï /order-tracking                      2.59 kB         108 kB
-Γö£ Γùï /privacy                               158 B         102 kB
-Γö£ ╞Æ /product/[slug]                      7.17 kB         162 kB
-Γö£ Γùï /pwa-settings                        2.24 kB         107 kB
-Γö£ Γùï /returns                             3.06 kB         163 kB
-Γö£ Γùï /returns/confirmation                1.55 kB         161 kB
-Γö£ Γùï /shipping                              186 B         105 kB
-Γö£ Γùï /shop                                4.12 kB         159 kB
-Γö£ Γùï /sitemap.xml                           158 B         102 kB
-Γö£ Γùï /support/ticket                      2.82 kB         162 kB
-Γö£ Γùï /support/tickets                     1.96 kB         162 kB
-Γö£ Γùï /terms                                 158 B         102 kB
-Γöö Γùï /wishlist                            2.87 kB         108 kB
-+ First Load JS shared by all             102 kB
-  Γö£ chunks/1684-ab838d46c4273742.js      46.4 kB
-  Γö£ chunks/4bd1b696-e3eb2ff09950b86f.js  53.2 kB
-  Γöö other shared chunks (total)             2 kB
-
-
-Γùï  (Static)   prerendered as static content
-ΓùÅ  (SSG)      prerendered as static HTML (uses generateStaticParams)
-╞Æ  (Dynamic)  server-rendered on demand
-
+   Generating static pages (0/59) ...
+Error occurred prerendering page "/". Read more: https://nextjs.org/docs/messages/prerender-error
+ReferenceError: categoriesHeading is not defined
+    at n (D:\Websites\standardecom\.next\server\app\(store)\page.js:1:7512)
+    at nO (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:45959)
+    at nI (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:47734)
+    at nL (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:65533)
+    at nN (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:63164)
+    at n$ (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:46311)
+    at nI (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:47780)
+    at nI (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:62515)
+    at nL (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:65533)
+    at nN (D:\Websites\standardecom\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:20:63164)
+Export encountered an error on /(store)/page: /, exiting the build.
+ ⨯ Next.js build worker exited with code: 1 and signal: null

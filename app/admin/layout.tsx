@@ -152,18 +152,7 @@ export default function AdminLayout({
       icon: 'ri-message-2-line',
       path: '/admin/test-sms'
     },
-    {
-      title: 'CMS / Pages',
-      icon: 'ri-file-list-line',
-      path: '/admin/cms',
-      moduleId: 'cms'
-    },
-    {
-      title: 'Homepage Config',
-      icon: 'ri-home-gear-line',
-      path: '/admin/homepage',
-      moduleId: 'homepage'
-    },
+
     {
       title: 'Blog',
       icon: 'ri-article-line',
@@ -189,7 +178,7 @@ export default function AdminLayout({
       <aside className={`fixed top-0 left-0 z-40 h-screen transition-transform bg-white border-r border-gray-200 ${isSidebarOpen ? 'w-64' : 'w-0'}`}>
         <div className="h-full px-4 py-6 overflow-y-auto">
           <Link href="/admin" className="flex items-center mb-8 px-2 cursor-pointer">
-            <span className="text-2xl font-['Pacifico'] text-emerald-700">logo</span>
+            <span className="text-xl font-['Pacifico'] text-emerald-700">Sarah Lawson</span>
             <span className="ml-3 text-sm font-semibold text-gray-500">ADMIN</span>
           </Link>
 

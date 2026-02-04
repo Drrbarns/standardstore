@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductCard from '@/components/ProductCard';
-import { useCMS } from '@/context/CMSContext';
+
 
 export default function HomePage() {
 
@@ -12,30 +12,22 @@ export default function HomePage() {
   const [categories, setCategories] = useState<any[]>([]); // Dynamic Categories
   const [loading, setLoading] = useState(true);
 
-  const { getSetting, getContent, loading: cmsLoading } = useCMS();
-
-  // Get CMS content
-  const heroContent = getContent('homepage', 'hero');
-
-  const featuredHeading = getContent('homepage', 'featured_heading');
-  const categoriesHeading = getContent('homepage', 'categories_heading');
-
-  // Config State with Defaults merged with CMS
+  // Config State - Managed in Code
   const config = {
     hero: {
-      headline: heroContent?.title || 'Elevate Your Everyday Living',
-      subheadline: heroContent?.subtitle || 'Discover thoughtfully curated products that blend timeless design with exceptional quality.',
-      primaryButtonText: heroContent?.button_text || 'Shop Collection',
-      primaryButtonLink: heroContent?.button_url || '/shop',
+      headline: 'SKINCARE MADE JUST FOR YOU!',
+      subheadline: 'Shop the latest collection of naturally made skincare, crafted with care and delivered with love to your doorstep',
+      primaryButtonText: 'Shop Now',
+      primaryButtonLink: '/shop',
       secondaryButtonText: 'Learn More',
       secondaryButtonLink: '/about',
-      backgroundImage: heroContent?.image_url || ''
+      backgroundImage: 'https://bskojprmfxugvkycvetc.supabase.co/storage/v1/object/public/media/uploads/hero-1769992745062-Vitamin_C_glow.png'
     },
     sections: {
       newArrivals: {
         enabled: true,
-        title: featuredHeading?.title || 'New Arrivals',
-        subtitle: featuredHeading?.subtitle || 'Explore the latest additions to our store',
+        title: 'Featured Products',
+        subtitle: 'Handpicked for you',
         count: 8
       }
     }
