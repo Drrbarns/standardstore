@@ -160,19 +160,19 @@ export default function CustomerInsightsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Customer Insights</h1>
-            <p className="text-gray-600 mt-2">Deep dive into customer behavior and lifetime value</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Customer Insights</h1>
+            <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">Deep dive into customer behavior and lifetime value</p>
           </div>
-          <div className="flex items-center space-x-3">
-            <button className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap flex items-center justify-center">
               <i className="ri-download-line mr-2"></i>
               Export List
             </button>
             <Link
               href="/admin"
-              className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap"
+              className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap text-center"
             >
               Back to Dashboard
             </Link>
@@ -240,7 +240,7 @@ export default function CustomerInsightsPage() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+            <div className="flex flex-wrap gap-2 bg-gray-100 rounded-lg p-1">
               {[
                 { value: 'all', label: 'All', count: customers.length },
                 { value: 'vip', label: 'VIP', count: stats.vip },
@@ -251,9 +251,9 @@ export default function CustomerInsightsPage() {
                 <button
                   key={segment.value}
                   onClick={() => setSelectedSegment(segment.value)}
-                  className={`px-4 py-2 rounded-md font-medium text-sm transition-colors whitespace-nowrap ${selectedSegment === segment.value
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                  className={`px-3 py-2 rounded-md font-medium text-sm transition-colors whitespace-nowrap flex-grow sm:flex-grow-0 ${selectedSegment === segment.value
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   {segment.label} ({segment.count})
@@ -328,8 +328,8 @@ export default function CustomerInsightsPage() {
                       <div className="flex-1 bg-gray-200 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full ${customer.engagementScore >= 80 ? 'bg-emerald-600' :
-                              customer.engagementScore >= 60 ? 'bg-blue-600' :
-                                customer.engagementScore >= 40 ? 'bg-amber-600' : 'bg-red-600'
+                            customer.engagementScore >= 60 ? 'bg-blue-600' :
+                              customer.engagementScore >= 40 ? 'bg-amber-600' : 'bg-red-600'
                             }`}
                           style={{ width: `${customer.engagementScore}%` }}
                         ></div>
