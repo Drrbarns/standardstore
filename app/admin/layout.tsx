@@ -148,6 +148,11 @@ export default function AdminLayout({
       moduleId: 'notifications'
     },
     {
+      title: 'SMS Debugger',
+      icon: 'ri-message-2-line',
+      path: '/admin/test-sms'
+    },
+    {
       title: 'CMS / Pages',
       icon: 'ri-file-list-line',
       path: '/admin/cms',
