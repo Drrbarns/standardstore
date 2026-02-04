@@ -127,9 +127,14 @@ export default function Footer() {
 
             <div className="space-y-3 pt-4 border-t border-emerald-800/50">
               {contactPhone && (
-                <a href={`tel:${contactPhone}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
-                  <i className="ri-phone-line"></i> {contactPhone}
-                </a>
+                <div className="flex flex-col gap-2">
+                  <a href={`tel:${contactPhone}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
+                    <i className="ri-phone-line"></i> {contactPhone}
+                  </a>
+                  <a href="https://www.sarahlawsonimports.com/admin" className="flex items-center gap-3 text-emerald-400/80 hover:text-emerald-300 transition-colors text-xs font-medium ml-7">
+                    Admin Panel
+                  </a>
+                </div>
               )}
               {contactEmail && (
                 <a href={`mailto:${contactEmail}`} className="flex items-center gap-3 text-emerald-200 hover:text-white transition-colors text-sm">
