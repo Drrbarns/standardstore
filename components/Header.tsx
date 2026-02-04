@@ -76,7 +76,7 @@ export default function Header() {
                   className="flex items-center"
                   aria-label="Go to homepage"
                 >
-                  <img src="/sarahlawson.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" />
+                  <img src="/sarahlogo.png" alt={siteName} className="h-8 md:h-10 w-auto object-contain" />
                 </Link>
               </div>
 
