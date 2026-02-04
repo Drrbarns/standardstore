@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import LazyImage from './LazyImage';
+import { useCart } from '@/context/CartContext';
 
 interface ProductCardProps {
   id: string;
@@ -26,6 +27,7 @@ export default function ProductCard({
   badge,
   inStock = true
 }: ProductCardProps) {
+  const { addToCart } = useCart();
   const discount = originalPrice ? Math.round((1 - price / originalPrice) * 100) : 0;
 
   return (
@@ -82,7 +84,20 @@ export default function ProductCard({
         </div>
 
         <button
-          className="w-full bg-gray-900 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 whitespace-nowrap text-sm lg:text-base"
+          onClick={(e) => {
+            e.preventDefault();
+            // Assuming default maxStock of 10 if not provided, since inStock is true
+            addToCart({
+              id,
+              name,
+              price,
+              image,
+              quantity: 1,
+              slug: id,
+              maxStock: 50
+            });
+          }}
+          className="w-full bg-gray-900 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 whitespace-nowrap text-sm lg:text-base cursor-pointer"
           disabled={!inStock}
         >
           <i className="ri-shopping-cart-line text-lg"></i>
