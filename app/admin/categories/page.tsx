@@ -20,6 +20,7 @@ export default function AdminCategoriesPage() {
     slug: '',
     description: '',
     image_url: '',
+    parent_id: '' as string | null,
     featured: false,
     status: 'active'
   });
@@ -52,6 +53,7 @@ export default function AdminCategoriesPage() {
       slug: category.slug,
       description: category.description || '',
       image_url: category.image_url || '',
+      parent_id: category.parent_id || '',
       featured: category.metadata?.featured || false,
       status: category.status
     });
@@ -114,6 +116,7 @@ export default function AdminCategoriesPage() {
         slug: formData.slug,
         description: formData.description,
         image_url: formData.image_url,
+        parent_id: formData.parent_id || null, // Handle empty string as null
         status: formData.status,
         metadata: {
           featured: formData.featured
@@ -138,7 +141,7 @@ export default function AdminCategoriesPage() {
       setShowAddModal(false);
       setShowEditModal(false);
       setEditingCategory(null);
-      setFormData({ name: '', slug: '', description: '', image_url: '', featured: false, status: 'active' });
+      setFormData({ name: '', slug: '', description: '', image_url: '', parent_id: '', featured: false, status: 'active' });
       fetchCategories();
 
     } catch (err: any) {
@@ -170,7 +173,7 @@ export default function AdminCategoriesPage() {
         <button
           onClick={() => {
             setEditingCategory(null);
-            setFormData({ name: '', slug: '', description: '', image_url: '', featured: false, status: 'active' });
+            setFormData({ name: '', slug: '', description: '', image_url: '', parent_id: '', featured: false, status: 'active' });
             setShowAddModal(true);
           }}
           className="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
@@ -202,6 +205,7 @@ export default function AdminCategoriesPage() {
               <tr>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Category</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Slug</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Parent</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Status</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Featured</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700">Actions</th>
@@ -209,9 +213,9 @@ export default function AdminCategoriesPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="p-8 text-center text-gray-500">Loading categories...</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Loading categories...</td></tr>
               ) : categories.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-gray-500">No categories found. Create one to get started!</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-gray-500">No categories found. Create one to get started!</td></tr>
               ) : (
                 categories.map((category) => (
                   <tr key={category.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
@@ -230,6 +234,9 @@ export default function AdminCategoriesPage() {
                       </div>
                     </td>
                     <td className="py-4 px-4 text-gray-700 text-sm font-mono">{category.slug}</td>
+                    <td className="py-4 px-4 text-sm text-gray-600">
+                      {categories.find(c => c.id === category.parent_id)?.name || '-'}
+                    </td>
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap capitalize ${category.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
                         }`}>
@@ -289,17 +296,38 @@ export default function AdminCategoriesPage() {
             </div>
 
             <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Category Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  placeholder="Enter category name"
-                />
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Category Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    placeholder="Enter category name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Parent Category (Optional)
+                  </label>
+                  <select
+                    value={formData.parent_id || ''}
+                    onChange={(e) => setFormData({ ...formData, parent_id: e.target.value || null })}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  >
+                    <option value="">None (Top Level)</option>
+                    {categories
+                      .filter(c => c.id !== editingCategory?.id) // Prevent self-parenting
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))
+                    }
+                  </select>
+                </div>
               </div>
 
               <div>

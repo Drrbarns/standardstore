@@ -43,9 +43,8 @@ function ShopContent() {
         .select('*');
 
       if (data) {
-        // Enhance with counts later if needed, for now just list them
-        const cats = data.map(c => ({ id: c.slug, name: c.name, count: 0 })); // Count requires separate queries or view
-        setCategories([{ id: 'all', name: 'All Products', count: 0 }, ...cats]);
+        // Store raw data for hierarchy logic
+        setCategories(data);
       }
     }
     fetchCategories();
@@ -72,11 +71,29 @@ function ShopContent() {
           query = query.ilike('name', `%${search}%`);
         }
 
-        // Category Filter
+        // Category Filter with Subcategories
         if (selectedCategory !== 'all') {
-          // We need to filter by category slug which is on the joined table, but Supabase standard filtering on joined tables is tricky with simple syntax.
-          // However, !inner joined allows filtering. 
-          query = query.eq('categories.slug', selectedCategory);
+          // Find the selected category object to check if it's a parent
+          const categoryObj = categories.find(c => c.slug === selectedCategory);
+
+          if (categoryObj) {
+            // Include self
+            const targetSlugs = [selectedCategory];
+
+            // Should we look for children? Yes, if it is a parent.
+            // (Even if it is a child, checking for its children doesn't hurt, though 3 levels deep needs recursion)
+            // Assuming 1 level of nesting for now:
+            const childSlugs = categories
+              .filter(c => c.parent_id === categoryObj.id)
+              .map(c => c.slug);
+
+            targetSlugs.push(...childSlugs);
+
+            query = query.in('categories.slug', targetSlugs);
+          } else {
+            // Fallback if state not synced yet, just try exact match
+            query = query.eq('categories.slug', selectedCategory);
+          }
         }
 
         // Price Filter
@@ -188,26 +205,68 @@ function ShopContent() {
                     {/* Categories */}
                     <div>
                       <h3 className="font-semibold text-gray-900 mb-4">Categories</h3>
-                      <div className="space-y-2">
-                        {categories.map(category => (
-                          <button
-                            key={category.id}
-                            onClick={() => {
-                              setSelectedCategory(category.id);
-                              setPage(1);
-                              setIsFilterOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === category.id
-                              ? 'bg-emerald-100 text-emerald-700 font-medium'
-                              : 'text-gray-700 hover:bg-gray-100'
-                              }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{category.name}</span>
-                              {/* Count removed for now as it requires complex grouping query */}
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('all');
+                            setPage(1);
+                            setIsFilterOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === 'all'
+                            ? 'bg-emerald-100 text-emerald-700 font-medium'
+                            : 'text-gray-700 hover:bg-gray-100'
+                            }`}
+                        >
+                          All Products
+                        </button>
+
+                        {/* Parent Categories */}
+                        {categories.filter(c => !c.parent_id && c.id !== 'all').map(parent => {
+                          const subcategories = categories.filter(c => c.parent_id === parent.id);
+                          const isSelected = selectedCategory === parent.slug;
+                          const isChildSelected = subcategories.some(sub => sub.slug === selectedCategory);
+                          const isOpen = isSelected || isChildSelected; // Auto-expand if selected
+
+                          return (
+                            <div key={parent.id} className="space-y-1">
+                              <button
+                                onClick={() => {
+                                  setSelectedCategory(parent.slug);
+                                  setPage(1);
+                                  // Don't close filter immediately if exploring hierarchy
+                                }}
+                                className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex justify-between items-center ${isSelected
+                                  ? 'bg-emerald-50 text-emerald-700 font-medium'
+                                  : 'text-gray-700 hover:bg-gray-100'
+                                  }`}
+                              >
+                                <span>{parent.name}</span>
+                              </button>
+
+                              {/* Subcategories */}
+                              {subcategories.length > 0 && (
+                                <div className="ml-4 border-l-2 border-gray-100 pl-2 space-y-1">
+                                  {subcategories.map(child => (
+                                    <button
+                                      key={child.id}
+                                      onClick={() => {
+                                        setSelectedCategory(child.slug);
+                                        setPage(1);
+                                        setIsFilterOpen(false);
+                                      }}
+                                      className={`w-full text-left px-4 py-1.5 rounded-lg text-sm transition-colors ${selectedCategory === child.slug
+                                        ? 'text-emerald-700 font-medium bg-emerald-50'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                      {child.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 
