@@ -11,7 +11,29 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
+        let body: any = {};
+        const contentType = req.headers.get('content-type') || '';
+
+        // Robust Body Parsing (JSON vs Form Data)
+        try {
+            if (contentType.includes('application/json')) {
+                body = await req.json();
+            } else if (contentType.includes('form')) { // x-www-form-urlencoded or multipart
+                const formData = await req.formData();
+                body = Object.fromEntries(formData.entries());
+            } else {
+                // Fallback: Try JSON, then text ignoring errors
+                try {
+                    body = await req.json();
+                } catch {
+                    console.warn('Could not parse callback body as JSON, ignoring.');
+                }
+            }
+        } catch (parseError) {
+            console.error('Body parsing failed:', parseError);
+            return NextResponse.json({ success: false, message: 'Invalid Request Body' }, { status: 400 });
+        }
+
         console.log('Moolre Callback Received:', body);
 
         const {
@@ -30,9 +52,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Invalid callback data: Missing order reference' }, { status: 400 });
         }
 
-        // Verify payment success (flexible match)
-        // Moolre might send 'success', 'completed', or 1
-        const isSuccess = status === 'success' || status === 'completed' || status === 1;
+        // Verify payment success (flexible match: case-insensitive string or number 1)
+        const statusStr = String(status || '').toLowerCase();
+        const isSuccess = statusStr === 'success' || statusStr === 'completed' || status == 1 || statusStr === '1';
 
         if (isSuccess) {
             console.log(`Processing successful payment for Order ${merchantOrderRef}, Method: Moolre`);
@@ -57,7 +79,7 @@ export async function POST(req: Request) {
             // Send notification directly
             try {
                 console.log('Triggering Order Confirmation Notification...');
-                await sendOrderConfirmation(orderJson); // RPC returns JSONB which matches shape
+                await sendOrderConfirmation(orderJson);
                 console.log('Notification trigger completed.');
             } catch (notifyError) {
                 console.error('Notification sent failed (Non-blocking):', notifyError);
