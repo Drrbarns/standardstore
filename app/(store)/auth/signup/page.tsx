@@ -12,6 +12,7 @@ export default function SignupPage() {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     password: '',
     confirmPassword: '',
     acceptTerms: false, // Fixed key name mismatch from original (was agreeToTerms locally vs acceptTerms in logic)
@@ -37,6 +38,9 @@ export default function SignupPage() {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email';
+    }
+    if (!formData.phone) {
+      newErrors.phone = 'Phone number is required';
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -64,6 +68,7 @@ export default function SignupPage() {
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
+            phone: formData.phone,
             newsletter: formData.newsletter
           }
         }
@@ -186,6 +191,23 @@ export default function SignupPage() {
               />
               {errors.email && (
                 <p className="text-sm text-red-600 mt-2">{errors.email}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                placeholder="+233 XX XXX XXXX"
+              />
+              {errors.phone && (
+                <p className="text-sm text-red-600 mt-2">{errors.phone}</p>
               )}
             </div>
 
