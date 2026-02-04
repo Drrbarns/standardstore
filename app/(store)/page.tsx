@@ -15,11 +15,11 @@ export default function HomePage() {
   // Config State - Managed in Code
   const config = {
     hero: {
-      headline: 'SKINCARE MADE JUST FOR YOU!',
-      subheadline: 'Shop the latest collection of naturally made skincare, crafted with care and delivered with love to your doorstep',
-      primaryButtonText: 'Shop Now',
+      headline: 'Handpicked by Sarah. Priced for You.',
+      subheadline: 'From global factories to your doorstep. Experience premium quality without the premium markup.',
+      primaryButtonText: 'Shop Collections',
       primaryButtonLink: '/shop',
-      secondaryButtonText: 'Learn More',
+      secondaryButtonText: 'Our Story',
       secondaryButtonLink: '/about',
       backgroundImage: '/sarah-lawson.jpeg'
     },
