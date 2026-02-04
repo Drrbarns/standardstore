@@ -184,37 +184,10 @@ export default function Header() {
                     <i className="ri-user-line text-2xl"></i>
                   </Link>
                 )}
-
-                <button
-                  className="w-10 h-10 flex items-center justify-center text-gray-700 hover:text-emerald-700 transition-colors lg:hidden"
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-                  aria-expanded={isMobileMenuOpen}
-                  aria-controls="mobile-menu"
-                >
-                  <i className={`ri-${isMobileMenuOpen ? 'close' : 'menu'}-line text-2xl`}></i>
-                </button>
               </div>
             </div>
           </div>
         </nav>
-
-        {isMobileMenuOpen && (
-          <div className="lg:hidden border-t border-gray-200 bg-white">
-            <nav className="px-4 py-4 space-y-3">
-              <Link href="/" className="block text-gray-700 hover:text-emerald-700 font-medium py-2">Home</Link>
-              <Link href="/shop" className="block text-gray-700 hover:text-emerald-700 font-medium py-2">Shop</Link>
-              <Link href="/categories" className="block text-gray-700 hover:text-emerald-700 font-medium py-2">Categories</Link>
-              <Link href="/about" className="block text-gray-700 hover:text-emerald-700 font-medium py-2">About</Link>
-              <Link href="/contact" className="block text-gray-700 hover:text-emerald-700 font-medium py-2">Contact</Link>
-              {user ? (
-                <Link href="/account" className="block text-emerald-700 hover:text-emerald-900 font-medium py-2 bg-emerald-50 px-2 rounded -mx-2">My Account</Link>
-              ) : (
-                <Link href="/auth/login" className="block text-gray-700 hover:text-emerald-700 font-medium py-2">Login / Sign Up</Link>
-              )}
-            </nav>
-          </div>
-        )}
       </header >
 
       {isSearchOpen && (
