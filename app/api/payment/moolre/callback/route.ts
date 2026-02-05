@@ -54,7 +54,13 @@ export async function POST(req: Request) {
 
         // Verify payment success (flexible match: case-insensitive string or number 1)
         const statusStr = String(status || '').toLowerCase();
-        const isSuccess = statusStr === 'success' || statusStr === 'completed' || status == 1 || statusStr === '1';
+        const isSuccess =
+            statusStr === 'success' ||
+            statusStr === 'successful' ||
+            statusStr === 'completed' ||
+            statusStr === 'paid' ||
+            status == 1 ||
+            statusStr === '1';
 
         if (isSuccess) {
             console.log(`Processing successful payment for Order ${merchantOrderRef}, Method: Moolre`);
