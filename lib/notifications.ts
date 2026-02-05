@@ -56,21 +56,12 @@ function formatPhoneNumber(phone: string): string {
 }
 
 export async function sendSMS({ to, message }: { to: string; message: string }) {
-    // Allow distinct SMS credentials, falling back to payment credentials
-    // Note: Moolre SMS might not use PubKey, or might differ from Payment PubKey.
-    // Logic: If using custom SMS User, only use custom SMS PubKey (don't fallback to Payment PubKey).
-    const isCustomSmsUser = !!process.env.MOOLRE_SMS_API_USER;
-    const smsUser = process.env.MOOLRE_SMS_API_USER || process.env.MOOLRE_API_USER;
-    const smsVasKey = process.env.MOOLRE_SMS_API_KEY || process.env.MOOLRE_API_KEY;
+    // Moolre SMS API only requires X-API-VASKEY header for authentication
+    // See: https://docs.moolre.com/#/send-sms
+    const smsVasKey = process.env.MOOLRE_SMS_API_KEY;
 
-    let smsPubKey = process.env.MOOLRE_SMS_API_PUBKEY;
-    if (!isCustomSmsUser) {
-        // If reusing Payment User, reuse Payment PubKey
-        smsPubKey = smsPubKey || process.env.MOOLRE_API_PUBKEY;
-    }
-
-    if (!smsVasKey || !smsUser) {
-        console.warn('[SMS] Missing Moolre credentials');
+    if (!smsVasKey) {
+        console.warn('[SMS] Missing MOOLRE_SMS_API_KEY');
         return null;
     }
 
@@ -82,13 +73,11 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-VASKEY': smsVasKey,
-                'X-API-USER': smsUser,
-                'X-API-PUBKEY': smsPubKey || ''
+                'X-API-VASKEY': smsVasKey
             },
             body: JSON.stringify({
                 type: 1,
-                senderid: 'SarahLawson', // Verified Approved Sender ID
+                senderid: 'SarahLawson',
                 messages: [
                     {
                         recipient: recipient,
@@ -99,7 +88,7 @@ export async function sendSMS({ to, message }: { to: string; message: string }) 
         });
 
         const result = await response.json();
-        console.log('[SMS] Result:', result.status === 1 ? 'Success' : 'Failed', '| Code:', result.status);
+        console.log('[SMS] Result:', result.status === 1 ? 'Success' : 'Failed', '| Code:', result.code);
         if (result.status !== 1) {
             console.log('[SMS] Full Response:', JSON.stringify(result, null, 2));
         }

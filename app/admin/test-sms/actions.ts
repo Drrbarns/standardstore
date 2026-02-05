@@ -4,34 +4,23 @@ export async function testSmsAction(phone: string, message: string) {
     try {
         console.log('Testing SMS to:', phone);
 
-        // Capture environment state for debugging
+        // Moolre SMS API only requires X-API-VASKEY for authentication
+        // See: https://docs.moolre.com/#/send-sms
+        const smsVasKey = process.env.MOOLRE_SMS_API_KEY;
+
         const envDebug = {
-            MOOLRE_SMS_API_USER: process.env.MOOLRE_SMS_API_USER ? 'Set' : 'Unset',
-            MOOLRE_SMS_API_KEY: process.env.MOOLRE_SMS_API_KEY ? 'Set' : 'Unset',
-            MOOLRE_SMS_API_PUBKEY: process.env.MOOLRE_SMS_API_PUBKEY ? 'Set' : 'Unset',
-            MOOLRE_API_USER: process.env.MOOLRE_API_USER ? 'Set' : 'Unset',
-            MOOLRE_API_PUBKEY: process.env.MOOLRE_API_PUBKEY ? 'Set' : 'Unset',
-            MOOLRE_API_KEY: process.env.MOOLRE_API_KEY ? 'Set' : 'Unset',
+            MOOLRE_SMS_API_KEY: smsVasKey ? 'Set' : 'Unset',
         };
 
-        // Get credentials
-        const isCustomSmsUser = !!process.env.MOOLRE_SMS_API_USER;
-        const smsUser = process.env.MOOLRE_SMS_API_USER || process.env.MOOLRE_API_USER;
-        const smsVasKey = process.env.MOOLRE_SMS_API_KEY || process.env.MOOLRE_API_KEY;
-        let smsPubKey = process.env.MOOLRE_SMS_API_PUBKEY;
-        if (!isCustomSmsUser) {
-            smsPubKey = smsPubKey || process.env.MOOLRE_API_PUBKEY;
-        }
-
-        if (!smsVasKey || !smsUser) {
+        if (!smsVasKey) {
             return {
                 success: false,
-                error: 'Missing credentials: smsVasKey=' + (smsVasKey ? 'present' : 'missing') + ', smsUser=' + (smsUser ? 'present' : 'missing'),
+                error: 'Missing MOOLRE_SMS_API_KEY environment variable',
                 envOfServer: envDebug
             };
         }
 
-        // Format phone number
+        // Format phone number for Ghana
         let cleaned = phone.replace(/\D/g, '');
         if (cleaned.startsWith('0')) {
             cleaned = '233' + cleaned.slice(1);
@@ -41,14 +30,12 @@ export async function testSmsAction(phone: string, message: string) {
         }
         const recipient = '+' + cleaned;
 
-        // Make direct API call for better error visibility
+        // Make API call per Moolre documentation
         const response = await fetch('https://api.moolre.com/open/sms/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-VASKEY': smsVasKey,
-                'X-API-USER': smsUser,
-                'X-API-PUBKEY': smsPubKey || ''
+                'X-API-VASKEY': smsVasKey
             },
             body: JSON.stringify({
                 type: 1,
