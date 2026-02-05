@@ -157,6 +157,18 @@ export default function CheckoutPage() {
 
       if (itemsError) throw itemsError;
 
+      // 3. Upsert Customer Record (for both guest and registered users)
+      const fullName = `${shippingData.firstName} ${shippingData.lastName}`.trim();
+      await supabase.rpc('upsert_customer_from_order', {
+        p_email: shippingData.email,
+        p_phone: shippingData.phone,
+        p_full_name: fullName,
+        p_first_name: shippingData.firstName,
+        p_last_name: shippingData.lastName,
+        p_user_id: user?.id || null,
+        p_address: shippingData
+      });
+
       // 4. Handle Payment Redirects or Completion
       if (paymentMethod === 'moolre') {
         try {

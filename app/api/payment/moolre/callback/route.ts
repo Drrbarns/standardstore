@@ -128,6 +128,20 @@ export async function POST(req: Request) {
 
             console.log('[Callback] Order updated successfully. ID:', orderJson.id, '| Phone:', orderJson.phone ? 'Present' : 'Missing');
 
+            // Update customer stats
+            try {
+                if (orderJson.email) {
+                    await supabase.rpc('update_customer_stats', {
+                        p_customer_email: orderJson.email,
+                        p_order_total: orderJson.total
+                    });
+                    console.log('[Callback] Customer stats updated for:', orderJson.email);
+                }
+            } catch (statsError: any) {
+                console.error('[Callback] Customer stats update failed:', statsError.message);
+                // Non-blocking
+            }
+
             // Send notification directly
             try {
                 console.log('[Callback] Triggering notifications for order:', orderJson.order_number);
