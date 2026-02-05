@@ -4,7 +4,8 @@ import { sendOrderConfirmation, sendOrderStatusUpdate, sendWelcomeMessage, sendC
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Use service role key on server-side to bypass RLS for admin verification
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function POST(request: Request) {
     try {
@@ -32,7 +33,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Payload required' }, { status: 400 });
         }
 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        // Use service role key to bypass RLS for server-side operations
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
         // Authentication requirements based on notification type
         // 'campaign' requires admin/staff role
@@ -49,15 +51,21 @@ export async function POST(request: Request) {
 
             const { data: { user }, error } = await supabase.auth.getUser(authToken);
             if (error || !user) {
+                console.error('[Notifications] Auth failed:', error?.message);
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
 
-            // Verify admin/staff role
-            const { data: profile } = await supabase
+            // Verify admin/staff role (using service role key bypasses RLS)
+            const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('role')
                 .eq('id', user.id)
                 .single();
+
+            if (profileError) {
+                console.error('[Notifications] Profile lookup failed:', profileError.message);
+                return NextResponse.json({ error: 'Failed to verify admin role' }, { status: 500 });
+            }
 
             if (!profile || (profile.role !== 'admin' && profile.role !== 'staff')) {
                 return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });

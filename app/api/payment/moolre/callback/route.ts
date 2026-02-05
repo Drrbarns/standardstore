@@ -16,6 +16,8 @@ if (process.env.NODE_ENV === 'development') {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: Request) {
+    console.log('[Callback] POST request received at', new Date().toISOString());
+    
     try {
         // Rate limiting for callbacks (more relaxed as it's from payment provider)
         const clientId = getClientIdentifier(req);
@@ -31,6 +33,7 @@ export async function POST(req: Request) {
 
         let body: any = {};
         const contentType = req.headers.get('content-type') || '';
+        console.log('[Callback] Content-Type:', contentType);
 
         // Robust Body Parsing (JSON vs Form Data)
         try {
@@ -40,11 +43,19 @@ export async function POST(req: Request) {
                 const formData = await req.formData();
                 body = Object.fromEntries(formData.entries());
             } else {
-                // Fallback: Try JSON, then text ignoring errors
+                // Fallback: Try JSON first, then raw text
+                const rawText = await req.text();
+                console.log('[Callback] Raw body (first 500 chars):', rawText.substring(0, 500));
                 try {
-                    body = await req.json();
+                    body = JSON.parse(rawText);
                 } catch {
-                    console.warn('[Callback] Could not parse body as JSON');
+                    // Try URL-encoded parsing
+                    try {
+                        const params = new URLSearchParams(rawText);
+                        body = Object.fromEntries(params.entries());
+                    } catch {
+                        console.warn('[Callback] Could not parse body');
+                    }
                 }
             }
         } catch (parseError) {
@@ -52,7 +63,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Invalid Request Body' }, { status: 400 });
         }
 
-        // Log callback received (sanitized - only log order reference and status)
+        // Log callback received with all keys for debugging
+        console.log('[Callback] Body keys:', Object.keys(body).join(', '));
         console.log('[Callback] Received - Status:', body.status, '| Ref:', body.externalref || body.orderRef || body.external_reference);
 
         const {
@@ -179,5 +191,71 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-    return NextResponse.json({ message: 'Moolre callback endpoint ready' });
+    // Some payment providers send callbacks via GET with query params
+    const url = new URL(req.url);
+    const params = Object.fromEntries(url.searchParams.entries());
+    
+    console.log('[Callback] GET request received. Params:', JSON.stringify(params));
+    
+    // If there are query params that look like a callback, process them
+    if (params.status && (params.externalref || params.orderRef || params.external_reference)) {
+        console.log('[Callback] Processing GET callback with params');
+        
+        const merchantOrderRef = params.externalref || params.orderRef || params.external_reference;
+        const statusStr = String(params.status || '').toLowerCase();
+        const isSuccess =
+            statusStr === 'success' ||
+            statusStr === 'successful' ||
+            statusStr === 'completed' ||
+            statusStr === 'paid' ||
+            params.status == '1' ||
+            statusStr === '1';
+
+        if (isSuccess && merchantOrderRef) {
+            console.log(`[Callback GET] Processing successful payment for Order ${merchantOrderRef}`);
+
+            // Verify order exists
+            const { data: existingOrder } = await supabase
+                .from('orders')
+                .select('id, order_number, payment_status, total')
+                .eq('order_number', merchantOrderRef)
+                .single();
+
+            if (!existingOrder) {
+                console.error('[Callback GET] Order not found:', merchantOrderRef);
+                return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+            }
+
+            if (existingOrder.payment_status === 'paid') {
+                return NextResponse.json({ success: true, message: 'Order already processed' });
+            }
+
+            const { data: orderJson, error: updateError } = await supabase
+                .rpc('mark_order_paid', {
+                    order_ref: merchantOrderRef,
+                    moolre_ref: params.reference || params.ref || 'GET-callback'
+                });
+
+            if (updateError) {
+                console.error('[Callback GET] RPC Error:', updateError.message);
+                return NextResponse.json({ success: false, message: 'Database update failed' }, { status: 500 });
+            }
+
+            if (orderJson) {
+                console.log('[Callback GET] Order updated successfully:', orderJson.id);
+                
+                // Send notifications
+                try {
+                    await sendOrderConfirmation(orderJson);
+                    console.log('[Callback GET] Notifications sent');
+                } catch (notifyError: any) {
+                    console.error('[Callback GET] Notification failed:', notifyError.message);
+                }
+            }
+
+            return NextResponse.json({ success: true, message: 'Payment verified and Order Updated (GET)' });
+        }
+    }
+    
+    return NextResponse.json({ message: 'Moolre callback endpoint ready', timestamp: new Date().toISOString() });
 }

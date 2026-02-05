@@ -34,7 +34,8 @@ export async function POST(req: Request) {
         }
 
         const requestUrl = new URL(req.url);
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
+        // Remove trailing slash to prevent double-slash in URLs (e.g. //api/...)
+        const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin).replace(/\/+$/, '');
 
         // Moolre Payload
         const payload = {
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
             }
         };
 
-        console.log('[Payment] Initiating for order:', orderId, '| Amount:', amount);
+        console.log('[Payment] Initiating for order:', orderId, '| Amount:', amount, '| Callback:', payload.callback);
 
         const response = await fetch('https://api.moolre.com/embed/link', {
             method: 'POST',
