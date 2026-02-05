@@ -161,18 +161,18 @@ export default function LoginPage() {
 
             <div className="mt-6 grid grid-cols-2 gap-4">
               <button
-                onClick={() => alert('Social login not implemented yet')}
-                className="flex items-center justify-center space-x-2 border-2 border-gray-300 hover:border-gray-400 py-3 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                disabled
+                className="flex items-center justify-center space-x-2 border-2 border-gray-200 bg-gray-50 py-3 rounded-lg cursor-not-allowed opacity-60"
               >
-                <i className="ri-google-fill text-xl text-red-600"></i>
-                <span className="font-medium text-gray-700">Google</span>
+                <i className="ri-google-fill text-xl text-red-600 grayscale opacity-50"></i>
+                <span className="font-medium text-gray-400">Google</span>
               </button>
               <button
-                onClick={() => alert('Social login not implemented yet')}
-                className="flex items-center justify-center space-x-2 border-2 border-gray-300 hover:border-gray-400 py-3 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                disabled
+                className="flex items-center justify-center space-x-2 border-2 border-gray-200 bg-gray-50 py-3 rounded-lg cursor-not-allowed opacity-60"
               >
-                <i className="ri-facebook-fill text-xl text-blue-600"></i>
-                <span className="font-medium text-gray-700">Facebook</span>
+                <i className="ri-facebook-fill text-xl text-blue-600 grayscale opacity-50"></i>
+                <span className="font-medium text-gray-400">Facebook</span>
               </button>
             </div>
           </div>
