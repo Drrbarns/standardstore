@@ -29,6 +29,21 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     window.print();
   };
 
+  // Inject print styles
+  useEffect(() => {
+    const styleId = 'order-print-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = '@media print { body * { visibility: hidden; } .print-section, .print-section * { visibility: visible; } .print-section { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; } .no-print { display: none !important; } }';
+      document.head.appendChild(style);
+    }
+    return () => {
+      const el = document.getElementById(styleId);
+      if (el) el.remove();
+    };
+  }, []);
+
   useEffect(() => {
     fetchOrderDetails();
   }, [orderId]);
@@ -256,15 +271,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Print Styles - injected via dangerouslySetInnerHTML to avoid styled-jsx dependency */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * { visibility: hidden; }
-          .print-section, .print-section * { visibility: visible; }
-          .print-section { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
-          .no-print { display: none !important; }
-        }
-      `}} />
+      {/* Print styles injected via useEffect */}
 
       {/* Printable Order Slip */}
       <div className="print-section hidden print:block bg-white p-8">
@@ -605,7 +612,6 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
