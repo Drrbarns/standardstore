@@ -211,26 +211,22 @@ export default function Home() {
           </AnimatedSection>
 
           <AnimatedGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-            {categories.length === 0 && !loading ? (
-              <p className="col-span-full text-center text-gray-500">No categories available</p>
-            ) : (
-              categories.map((category) => (
-                <Link href={`/shop?category=${category.slug}`} key={category.id} className="group cursor-pointer block">
-                  <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-4 relative shadow-md">
-                    <img
-                      src={category.image_url || 'https://via.placeholder.com/600x800?text=' + category.name}
-                      alt={category.name}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
-                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl text-center transform translate-y-2 opacity-90 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                      <h3 className="font-serif font-bold text-gray-900 text-lg">{category.name}</h3>
-                      <span className="text-xs text-emerald-800 font-medium uppercase tracking-wider mt-1 block">View Collection</span>
-                    </div>
+            {categories.map((category) => (
+              <Link href={`/shop?category=${category.slug}`} key={category.id} className="group cursor-pointer block">
+                <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-4 relative shadow-md">
+                  <img
+                    src={category.image_url || 'https://via.placeholder.com/600x800?text=' + category.name}
+                    alt={category.name}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
+                  <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl text-center transform translate-y-2 opacity-90 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                    <h3 className="font-serif font-bold text-gray-900 text-lg">{category.name}</h3>
+                    <span className="text-xs text-emerald-800 font-medium uppercase tracking-wider mt-1 block">View Collection</span>
                   </div>
-                </Link>
-              ))
-            )}
+                </div>
+              </Link>
+            ))}
           </AnimatedGrid>
           
           <div className="mt-8 text-center md:hidden">
