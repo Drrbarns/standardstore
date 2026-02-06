@@ -9,6 +9,7 @@ import AnimatedSection, { AnimatedGrid } from '@/components/AnimatedSection';
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Config State - Managed in Code
@@ -41,32 +42,35 @@ export default function Home() {
   };
 
   useEffect(() => {
-    async function fetchFeaturedProducts() {
+    async function fetchData() {
       try {
-        const { data, error } = await supabase
+        // Fetch products
+        const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select('*, product_variants(*), product_images(*)')
           .ilike('status', 'active')
           .limit(8);
 
-        if (error) throw error;
-        setFeaturedProducts(data || []);
+        if (productsError) throw productsError;
+        setFeaturedProducts(productsData || []);
+
+        // Fetch categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name, slug, image_url')
+          .order('name');
+
+        if (categoriesError) throw categoriesError;
+        setCategories(categoriesData || []);
       } catch (error) {
-        console.error('Error fetching featured products:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchFeaturedProducts();
+    fetchData();
   }, []);
-
-  const categories = [
-    { name: 'Mannequins', image: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=600&h=800&fit=crop', link: '/shop?category=mannequins' },
-    { name: 'Kitchen Utensils', image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=800&fit=crop', link: '/shop?category=kitchen-utensiles' },
-    { name: 'Kitchen Appliances', image: 'https://images.unsplash.com/photo-1556909172-8c2f041fca1e?w=600&h=800&fit=crop', link: '/shop?category=kitchen-appliances' },
-    { name: 'Dresses', image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=800&fit=crop', link: '/shop?category=dresses' },
-  ];
 
   const features = [
     { icon: 'ri-store-2-line', title: 'Free Store Pickup', desc: 'Pick up at our store' },
@@ -207,22 +211,26 @@ export default function Home() {
           </AnimatedSection>
 
           <AnimatedGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-            {categories.map((category) => (
-              <Link href={category.link} key={category.name} className="group cursor-pointer block">
-                <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-4 relative shadow-md">
-                  <img
-                    src={category.image}
-                    alt={category.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
-                  <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl text-center transform translate-y-2 opacity-90 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                    <h3 className="font-serif font-bold text-gray-900 text-lg">{category.name}</h3>
-                    <span className="text-xs text-emerald-800 font-medium uppercase tracking-wider mt-1 block">View Collection</span>
+            {categories.length === 0 && !loading ? (
+              <p className="col-span-full text-center text-gray-500">No categories available</p>
+            ) : (
+              categories.map((category) => (
+                <Link href={`/shop?category=${category.slug}`} key={category.id} className="group cursor-pointer block">
+                  <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-4 relative shadow-md">
+                    <img
+                      src={category.image_url || 'https://via.placeholder.com/600x800?text=' + category.name}
+                      alt={category.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
+                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl text-center transform translate-y-2 opacity-90 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                      <h3 className="font-serif font-bold text-gray-900 text-lg">{category.name}</h3>
+                      <span className="text-xs text-emerald-800 font-medium uppercase tracking-wider mt-1 block">View Collection</span>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              ))
+            )}
           </AnimatedGrid>
           
           <div className="mt-8 text-center md:hidden">
