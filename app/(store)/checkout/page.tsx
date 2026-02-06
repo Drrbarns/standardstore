@@ -51,7 +51,7 @@ export default function CheckoutPage() {
     'Western North'
   ];
 
-  const [deliveryMethod, setDeliveryMethod] = useState('standard');
+  const [deliveryMethod, setDeliveryMethod] = useState('accra');
   const [paymentMethod, setPaymentMethod] = useState('moolre');
   const [errors, setErrors] = useState<any>({});
 
@@ -86,7 +86,7 @@ export default function CheckoutPage() {
 
   // Calculate Totals
   const subtotal = cartSubtotal;
-  const shippingCost = deliveryMethod === 'express' ? 25 : deliveryMethod === 'standard' ? 15 : 0;
+  const shippingCost = deliveryMethod === 'accra' ? 40 : deliveryMethod === 'outside-accra' ? 30 : 0;
   const tax = 0; // No Tax
   const total = subtotal + shippingCost + tax;
 
@@ -481,42 +481,42 @@ export default function CheckoutPage() {
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-6">Delivery Method</h2>
                   <div className="space-y-4">
-                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'standard' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
+                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'accra' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
                       }`}>
                       <div className="flex items-center space-x-4">
                         <input
                           type="radio"
                           name="delivery"
-                          value="standard"
-                          checked={deliveryMethod === 'standard'}
+                          value="accra"
+                          checked={deliveryMethod === 'accra'}
                           onChange={(e) => setDeliveryMethod(e.target.value)}
                           className="w-5 h-5 text-emerald-700"
                         />
                         <div>
-                          <p className="font-semibold text-gray-900">Standard Delivery</p>
-                          <p className="text-sm text-gray-600">5-7 business days</p>
+                          <p className="font-semibold text-gray-900">Accra Delivery</p>
+                          <p className="text-sm text-gray-600">Delivery within Accra</p>
                         </div>
                       </div>
-                      <p className="font-bold text-gray-900">GH₵ 15.00</p>
+                      <p className="font-bold text-gray-900">GH₵ 40.00</p>
                     </label>
 
-                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'express' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
+                    <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'outside-accra' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
                       }`}>
                       <div className="flex items-center space-x-4">
                         <input
                           type="radio"
                           name="delivery"
-                          value="express"
-                          checked={deliveryMethod === 'express'}
+                          value="outside-accra"
+                          checked={deliveryMethod === 'outside-accra'}
                           onChange={(e) => setDeliveryMethod(e.target.value)}
                           className="w-5 h-5 text-emerald-700"
                         />
                         <div>
-                          <p className="font-semibold text-gray-900">Express Delivery</p>
-                          <p className="text-sm text-gray-600">2-3 business days</p>
+                          <p className="font-semibold text-gray-900">Outside Accra Delivery</p>
+                          <p className="text-sm text-gray-600">Delivery to bus stations (VIP, OA, STC, etc.)</p>
                         </div>
                       </div>
-                      <p className="font-bold text-gray-900">GH₵ 25.00</p>
+                      <p className="font-bold text-gray-900">GH₵ 30.00</p>
                     </label>
 
                     <label className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${deliveryMethod === 'pickup' ? 'border-emerald-700 bg-emerald-50' : 'border-gray-300 hover:border-gray-400'
