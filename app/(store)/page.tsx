@@ -282,65 +282,33 @@ export default function Home() {
       </section>
 
       {/* Join Community Section */}
-      <section className="py-24 bg-emerald-900 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <AnimatedSection>
-              <h2 className="font-serif text-4xl md:text-5xl mb-6 leading-tight">Join Our Community</h2>
-              <p className="text-emerald-100 text-lg mb-8 leading-relaxed max-w-lg">
-                Get exclusive access to new arrivals, secret sales, and sourcing stories from Sarah.
-                We promise not to spam your inbox.
-              </p>
-              
-              <form className="flex flex-col sm:flex-row gap-4 max-w-md">
-                <input 
-                  type="email" 
-                  placeholder="Enter your email address" 
-                  className="flex-1 px-6 py-4 rounded-full bg-white/10 border border-white/20 text-white placeholder-emerald-200 focus:outline-none focus:ring-2 focus:ring-white/50 backdrop-blur-sm"
-                  required
-                />
-                <button className="bg-white text-emerald-900 px-8 py-4 rounded-full font-bold hover:bg-emerald-50 transition-colors shadow-lg btn-animate">
-                  Join
-                </button>
-              </form>
-              
-              <div className="mt-10 flex items-center space-x-8 text-emerald-200">
-                <div className="flex items-center">
-                  <i className="ri-check-line mr-2 bg-emerald-800 rounded-full p-1"></i>
-                  <span className="text-sm">Weekly Updates</span>
-                </div>
-                <div className="flex items-center">
-                  <i className="ri-check-line mr-2 bg-emerald-800 rounded-full p-1"></i>
-                  <span className="text-sm">No Spam</span>
-                </div>
-              </div>
-            </AnimatedSection>
+      <section className="py-20 bg-emerald-900 text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <AnimatedSection>
+            <div className="w-16 h-16 bg-emerald-800/50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <i className="ri-mail-star-line text-3xl text-emerald-300"></i>
+            </div>
+            <h2 className="font-serif text-3xl md:text-4xl mb-4">Join Our Community</h2>
+            <p className="text-emerald-200 mb-8 max-w-md mx-auto leading-relaxed">
+              Get exclusive access to new arrivals, secret sales, and sourcing stories from Sarah.
+            </p>
             
-            <AnimatedSection className="relative hidden lg:block" delay={200}>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-4 mt-8">
-                  <div className="aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl transform translate-y-4">
-                     <img src="https://images.unsplash.com/photo-1595991209241-1e5e8a946d32?q=80&w=2070&auto=format&fit=crop" className="w-full h-full object-cover" alt="Community" />
-                  </div>
-                  <div className="aspect-square rounded-2xl overflow-hidden shadow-2xl">
-                     <img src="https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=2070&auto=format&fit=crop" className="w-full h-full object-cover" alt="Community" />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="aspect-square rounded-2xl overflow-hidden shadow-2xl">
-                     <img src="https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?q=80&w=1964&auto=format&fit=crop" className="w-full h-full object-cover" alt="Community" />
-                  </div>
-                  <div className="aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl transform -translate-y-4">
-                     <img src="https://images.unsplash.com/photo-1591085686350-798c0f9faa7f?q=80&w=1931&auto=format&fit=crop" className="w-full h-full object-cover" alt="Community" />
-                  </div>
-                </div>
-              </div>
-            </AnimatedSection>
-          </div>
+            <form className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+              <input 
+                type="email" 
+                placeholder="Enter your email address" 
+                className="flex-1 px-6 py-4 rounded-full bg-white/10 border border-white/20 text-white placeholder-emerald-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                required
+              />
+              <button className="bg-white text-emerald-900 px-8 py-4 rounded-full font-bold hover:bg-emerald-50 transition-colors shadow-lg">
+                Subscribe
+              </button>
+            </form>
+            
+            <p className="text-emerald-300/70 text-sm mt-4">
+              We respect your privacy. Unsubscribe at any time.
+            </p>
+          </AnimatedSection>
         </div>
       </section>
 
