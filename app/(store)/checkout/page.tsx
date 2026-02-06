@@ -570,7 +570,7 @@ export default function CheckoutPage() {
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-700"></div>
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">Moolre Payment</p>
+                        <p className="font-semibold text-gray-900">Pay With Mobile Money</p>
                         <p className="text-sm text-gray-600">Mobile money & card payments</p>
                       </div>
                     </div>
