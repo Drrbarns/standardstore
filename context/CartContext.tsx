@@ -11,6 +11,7 @@ export type CartItem = {
     variant?: string;
     slug: string;
     maxStock: number;
+    moq?: number; // Minimum Order Quantity
 };
 
 type CartContextType = {
@@ -107,18 +108,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     const updateQuantity = (itemId: string, quantity: number, variant?: string) => {
-        if (quantity < 1) {
-            removeFromCart(itemId, variant);
-            return;
-        }
+        setCart((prevCart) => {
+            const item = prevCart.find(i => i.id === itemId && i.variant === variant);
+            if (!item) return prevCart;
 
-        setCart((prevCart) =>
-            prevCart.map((item) =>
-                item.id === itemId && item.variant === variant
-                    ? { ...item, quantity: Math.min(quantity, item.maxStock) }
-                    : item
-            )
-        );
+            const minQty = item.moq || 1;
+            
+            // If trying to reduce below MOQ, remove the item
+            if (quantity < minQty) {
+                return prevCart.filter(i => !(i.id === itemId && i.variant === variant));
+            }
+
+            // Clamp quantity between MOQ and maxStock
+            const clampedQty = Math.min(Math.max(quantity, minQty), item.maxStock);
+
+            return prevCart.map((i) =>
+                i.id === itemId && i.variant === variant
+                    ? { ...i, quantity: clampedQty }
+                    : i
+            );
+        });
     };
 
     const clearCart = () => {

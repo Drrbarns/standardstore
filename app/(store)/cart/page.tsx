@@ -122,27 +122,39 @@ export default function CartPage() {
                               </div>
 
                               <div className="flex items-center space-x-4">
-                                <div className="flex items-center border-2 border-gray-300 rounded-lg">
-                                  <button
-                                    onClick={() => updateQuantity(item.id, item.quantity - 1, item.variant)}
-                                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                                  >
-                                    <i className="ri-subtract-line"></i>
-                                  </button>
-                                  <input
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1, item.variant)}
-                                    className="w-12 h-10 text-center border-x-2 border-gray-300 focus:outline-none font-semibold"
-                                    min="1"
-                                    max={item.maxStock}
-                                  />
-                                  <button
-                                    onClick={() => updateQuantity(item.id, item.quantity + 1, item.variant)}
-                                    className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-                                  >
-                                    <i className="ri-add-line"></i>
-                                  </button>
+                                <div className="flex flex-col">
+                                  <div className="flex items-center border-2 border-gray-300 rounded-lg">
+                                    <button
+                                      onClick={() => updateQuantity(item.id, item.quantity - 1, item.variant)}
+                                      className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                      title={item.quantity <= (item.moq || 1) ? 'Remove item' : 'Decrease quantity'}
+                                    >
+                                      {item.quantity <= (item.moq || 1) ? (
+                                        <i className="ri-delete-bin-line text-red-500"></i>
+                                      ) : (
+                                        <i className="ri-subtract-line"></i>
+                                      )}
+                                    </button>
+                                    <input
+                                      type="number"
+                                      value={item.quantity}
+                                      onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || (item.moq || 1), item.variant)}
+                                      className="w-12 h-10 text-center border-x-2 border-gray-300 focus:outline-none font-semibold"
+                                      min={item.moq || 1}
+                                      max={item.maxStock}
+                                    />
+                                    <button
+                                      onClick={() => updateQuantity(item.id, item.quantity + 1, item.variant)}
+                                      className="w-10 h-10 flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                    >
+                                      <i className="ri-add-line"></i>
+                                    </button>
+                                  </div>
+                                  {(item.moq || 1) > 1 && (
+                                    <span className="text-xs text-amber-600 mt-1">
+                                      Min. order: {item.moq} units
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>

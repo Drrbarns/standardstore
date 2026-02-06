@@ -137,7 +137,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       quantity: quantity,
       variant: selectedSize ? `${selectedSize}` : undefined,
       slug: product.slug,
-      maxStock: product.stockCount
+      maxStock: product.stockCount,
+      moq: product.moq || 1
     });
   };
 
