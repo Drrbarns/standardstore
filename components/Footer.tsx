@@ -175,7 +175,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-emerald-800/50 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-emerald-400/60">
-          <p>&copy; {new Date().getFullYear()} {siteName}. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {siteName}. All rights reserved. | Powered by <a href="https://doctorbarns.com" target="_blank" rel="noopener noreferrer" className="text-emerald-300 hover:text-white transition-colors">Doctor Barns Tech</a></p>
           <div className="flex gap-4 grayscale opacity-50">
             <i className="ri-visa-line text-2xl"></i>
             <i className="ri-mastercard-line text-2xl"></i>
