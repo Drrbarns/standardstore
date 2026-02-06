@@ -77,7 +77,7 @@ export default function WishlistPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {wishlistItems.map((product) => (
                 <div key={product.id} className="relative">
-                  <ProductCard {...product} />
+                  <ProductCard {...product} slug={product.slug || product.id} />
                   <button
                     onClick={() => removeFromWishlist(product.id)}
                     className="absolute top-3 right-3 w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-md hover:bg-red-50 transition-colors z-10"

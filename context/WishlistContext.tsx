@@ -12,7 +12,7 @@ export type WishlistItem = {
     reviewCount?: number;
     badge?: string;
     inStock: boolean;
-    slug?: string;
+    slug: string;
 };
 
 type WishlistContextType = {
