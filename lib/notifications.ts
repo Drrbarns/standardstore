@@ -11,6 +11,10 @@ function maskPhone(phone: string): string {
 }
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+    // TEMPORARILY DISABLED - Resend daily limit exceeded. Remove this block to re-enable.
+    console.log('[Email] Skipped (temporarily disabled):', subject, '→', to.split('@')[0] + '@***');
+    return null;
+
     if (!process.env.RESEND_API_KEY) {
         console.warn('[Email] RESEND_API_KEY not configured');
         return null;
