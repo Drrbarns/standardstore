@@ -24,6 +24,7 @@ interface Order {
   };
   order_items?: {
     quantity: number;
+    product_name?: string;
   }[];
 }
 
@@ -54,6 +55,8 @@ export default function AdminOrdersPage() {
   const [abandonedCount, setAbandonedCount] = useState(0);
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [showProductStats, setShowProductStats] = useState(false);
+  const [productFilter, setProductFilter] = useState('all');
+  const [availableProducts, setAvailableProducts] = useState<string[]>([]);
 
   useEffect(() => {
     fetchOrders();
@@ -80,7 +83,8 @@ export default function AdminOrdersPage() {
           shipping_address,
           metadata,
           order_items (
-            quantity
+            quantity,
+            product_name
           )
         `)
         .order('created_at', { ascending: false });
@@ -88,6 +92,15 @@ export default function AdminOrdersPage() {
       if (error) throw error;
 
       setOrders(ordersData || []);
+
+      // Extract unique product names for filter
+      const productNames = new Set<string>();
+      ordersData?.forEach(o => {
+        o.order_items?.forEach((item: any) => {
+          if (item.product_name) productNames.add(item.product_name);
+        });
+      });
+      setAvailableProducts(Array.from(productNames).sort());
 
       // Separate confirmed (paid) from abandoned (pending payment)
       const confirmedOrders = ordersData?.filter(o => o.payment_status === 'paid') || [];
@@ -293,7 +306,9 @@ export default function AdminOrdersPage() {
       customerName.includes(searchQuery.toLowerCase()) ||
       customerEmail.includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesViewTab && matchesSearch && matchesStatus;
+    const matchesProduct = productFilter === 'all' || 
+      order.order_items?.some((item: any) => item.product_name === productFilter);
+    return matchesViewTab && matchesSearch && matchesStatus && matchesProduct;
   });
 
   return (
@@ -404,6 +419,16 @@ export default function AdminOrdersPage() {
                 <i className="ri-filter-line mr-2"></i>
                 Filters
               </button>
+              <select
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                className="px-4 py-3 pr-8 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium cursor-pointer"
+              >
+                <option value="all">All Products</option>
+                {availableProducts.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
