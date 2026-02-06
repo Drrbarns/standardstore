@@ -254,7 +254,18 @@ export default function Home() {
           ) : (
             <AnimatedGrid className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 lg:gap-8">
               {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard
+                  key={product.id}
+                  id={product.slug || product.id}
+                  name={product.name}
+                  price={product.price}
+                  originalPrice={product.compare_at_price}
+                  image={product.product_images?.[0]?.url || 'https://via.placeholder.com/400x500'}
+                  rating={product.rating || 5}
+                  reviewCount={product.review_count || 0}
+                  badge={product.featured ? 'Featured' : undefined}
+                  inStock={product.quantity > 0}
+                />
               ))}
             </AnimatedGrid>
           )}
