@@ -96,7 +96,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         if (productData.category_id) {
           const { data: related } = await supabase
             .from('products')
-            .select('*, product_images(url, position), product_variants(id, name, price, stock)')
+            .select('*, product_images(url, position), product_variants(id, name, price, quantity)')
             .eq('category_id', productData.category_id)
             .neq('id', productData.id)
             .limit(4);

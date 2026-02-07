@@ -63,7 +63,7 @@ function ShopContent() {
             *,
             categories!inner(name, slug),
             product_images!product_id(url, position),
-            product_variants(id, name, price, stock)
+            product_variants(id, name, price, quantity)
           `, { count: 'exact' })
           .order('position', { foreignTable: 'product_images', ascending: true });
 
