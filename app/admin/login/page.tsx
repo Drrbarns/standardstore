@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -12,11 +13,20 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { getToken, verifying } = useRecaptcha();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('admin_login');
+    if (!isHuman) {
+      setError('Security verification failed. Please try again.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -103,13 +113,13 @@ export default function AdminLoginPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || verifying}
               className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
-              {isLoading ? (
+              {isLoading || verifying ? (
                 <span className="flex items-center justify-center space-x-2">
                   <i className="ri-loader-4-line animate-spin"></i>
-                  <span>Signing in...</span>
+                  <span>{verifying ? 'Verifying...' : 'Signing in...'}</span>
                 </span>
               ) : (
                 'Sign In'

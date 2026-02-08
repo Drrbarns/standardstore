@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { getToken, verifying } = useRecaptcha();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +23,14 @@ export default function ForgotPasswordPage() {
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email');
+      setIsLoading(false);
+      return;
+    }
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('forgot_password');
+    if (!isHuman) {
+      setError('Security verification failed. Please try again.');
       setIsLoading(false);
       return;
     }
@@ -88,10 +98,10 @@ export default function ForgotPasswordPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || verifying}
               className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
-              {isLoading ? 'Sending...' : 'Send Reset Link'}
+              {isLoading || verifying ? (verifying ? 'Verifying...' : 'Sending...') : 'Send Reset Link'}
             </button>
           </form>
 

@@ -8,6 +8,7 @@ import OrderSummary from '@/components/OrderSummary';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 export default function CheckoutPage() {
   usePageTitle('Checkout');
@@ -20,6 +21,7 @@ export default function CheckoutPage() {
   const [saveAddress, setSaveAddress] = useState(false);
   const [savePayment, setSavePayment] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const { getToken, verifying } = useRecaptcha();
 
   const [shippingData, setShippingData] = useState({
     firstName: '',
@@ -126,6 +128,14 @@ export default function CheckoutPage() {
     }
 
     setIsLoading(true);
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('checkout');
+    if (!isHuman) {
+      alert('Security verification failed. Please try again.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;

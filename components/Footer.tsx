@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useCMS } from '@/context/CMSContext';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 function FooterSection({ title, children }: { title: string, children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,11 +29,20 @@ export default function Footer() {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const { getToken } = useRecaptcha();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus('idle');
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('newsletter');
+    if (!isHuman) {
+      setSubmitStatus('error');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       // Newsletter simulation

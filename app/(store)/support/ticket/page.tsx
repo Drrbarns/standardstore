@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 export default function SupportTicketPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function SupportTicketPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const { getToken } = useRecaptcha();
 
   const categories = [
     { value: 'order', label: 'Order Issue', icon: 'ri-shopping-bag-line' },
@@ -34,6 +36,14 @@ export default function SupportTicketPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('support_ticket');
+    if (!isHuman) {
+      setIsSubmitting(false);
+      alert('Security verification failed. Please try again.');
+      return;
+    }
     
     setTimeout(() => {
       setIsSubmitting(false);

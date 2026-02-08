@@ -5,6 +5,7 @@ import { useCMS } from '@/context/CMSContext';
 import { supabase } from '@/lib/supabase';
 import PageHero from '@/components/PageHero';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 export default function ContactPage() {
   usePageTitle('Contact Us');
@@ -19,6 +20,7 @@ export default function ContactPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const { getToken, verifying } = useRecaptcha();
 
   useEffect(() => {
     async function fetchContactContent() {
@@ -40,6 +42,14 @@ export default function ContactPage() {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitStatus('idle');
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('contact');
+    if (!isHuman) {
+      setSubmitStatus('error');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       // Store in Supabase
@@ -308,10 +318,10 @@ export default function ContactPage() {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || verifying}
                 className="w-full bg-emerald-700 text-white py-4 rounded-xl font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
               >
-                {isSubmitting ? 'Sending...' : 'Send Message'}
+                {isSubmitting || verifying ? (verifying ? 'Verifying...' : 'Sending...') : 'Send Message'}
               </button>
             </form>
           </div>

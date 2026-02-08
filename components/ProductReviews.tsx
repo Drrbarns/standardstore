@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 interface Review {
   id: string;
@@ -32,6 +33,7 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
     title: '',
     content: ''
   });
+  const { getToken, verifying } = useRecaptcha();
 
   useEffect(() => {
     // Check auth
@@ -100,6 +102,13 @@ export default function ProductReviews({ productId }: ProductReviewsProps) {
     e.preventDefault();
     if (!user) {
       alert('Please login to submit a review');
+      return;
+    }
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('review');
+    if (!isHuman) {
+      alert('Security verification failed. Please try again.');
       return;
     }
 

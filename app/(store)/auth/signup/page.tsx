@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import { supabase } from '@/lib/supabase';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 function getFriendlyError(message: string): string {
   const lower = message.toLowerCase();
@@ -45,6 +46,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [success, setSuccess] = useState(false);
+  const { getToken, verifying } = useRecaptcha();
 
   // Auto-scroll to error when it appears
   useEffect(() => {
@@ -84,6 +86,14 @@ export default function SignupPage() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      setIsLoading(false);
+      return;
+    }
+
+    // reCAPTCHA verification
+    const isHuman = await getToken('signup');
+    if (!isHuman) {
+      setAuthError('Security verification failed. Please try again.');
       setIsLoading(false);
       return;
     }
@@ -319,12 +329,12 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || verifying}
               className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
             >
-              {isLoading ? (
+              {isLoading || verifying ? (
                 <span className="flex items-center justify-center">
-                  <i className="ri-loader-4-line animate-spin mr-2"></i> Creating account...
+                  <i className="ri-loader-4-line animate-spin mr-2"></i> {verifying ? 'Verifying...' : 'Creating account...'}
                 </span>
               ) : 'Create Account'}
             </button>
