@@ -432,12 +432,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <i className="ri-store-2-line text-xl text-emerald-700 mr-3"></i>
                     <span>Free store pickup available</span>
                   </div>
-                  {product.preorderShipping && (
-                    <div className="flex items-center text-gray-700 font-medium text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                      <i className="ri-time-line text-xl mr-3"></i>
-                      <span>{product.preorderShipping}</span>
-                    </div>
-                  )}
                   <div className="flex items-center text-gray-700">
                     <i className="ri-arrow-left-right-line text-xl text-emerald-700 mr-3"></i>
                     <span>30-day easy returns and exchanges</span>

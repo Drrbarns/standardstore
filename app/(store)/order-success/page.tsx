@@ -234,6 +234,11 @@ function OrderSuccessContent() {
                       {item.variant_name && (
                         <p className="text-xs text-gray-500">{item.variant_name}</p>
                       )}
+                      {item.metadata?.preorder_shipping && (
+                        <p className="text-xs text-amber-700 bg-amber-50 inline-flex items-center gap-1 px-2 py-0.5 rounded mt-1 border border-amber-200">
+                          <i className="ri-time-line"></i> {item.metadata.preorder_shipping}
+                        </p>
+                      )}
                     </div>
                     <p className="font-bold text-gray-900">GH₵{item.unit_price.toFixed(2)}</p>
                   </div>

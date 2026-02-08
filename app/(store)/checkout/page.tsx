@@ -171,6 +171,14 @@ export default function CheckoutPage() {
       
       // Build order items, resolving slugs to UUIDs if needed
       const orderItems = [];
+      
+      // Batch-fetch product metadata (for preorder_shipping etc.)
+      const productIds = cart.map(item => item.id).filter(id => isValidUUID(id));
+      const { data: productsData } = productIds.length > 0
+        ? await supabase.from('products').select('id, metadata').in('id', productIds)
+        : { data: [] };
+      const productMetaMap = new Map((productsData || []).map((p: any) => [p.id, p.metadata]));
+      
       for (const item of cart) {
         let productId = item.id;
         
@@ -178,16 +186,19 @@ export default function CheckoutPage() {
         if (!isValidUUID(productId)) {
           const { data: product } = await supabase
             .from('products')
-            .select('id')
+            .select('id, metadata')
             .or(`slug.eq.${productId},id.eq.${productId}`)
             .single();
           
           if (product) {
             productId = product.id;
+            productMetaMap.set(product.id, product.metadata);
           } else {
             throw new Error(`Product not found: ${item.name}. Please remove it from your cart and try again.`);
           }
         }
+        
+        const prodMeta = productMetaMap.get(productId);
         
         orderItems.push({
           order_id: order.id,
@@ -199,7 +210,8 @@ export default function CheckoutPage() {
           total_price: item.price * item.quantity,
           metadata: {
             image: item.image,
-            slug: item.slug
+            slug: item.slug,
+            preorder_shipping: prodMeta?.preorder_shipping || null
           }
         });
       }

@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { supabase } from '@/lib/supabase';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'missing_api_key');
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@standardecom.com';
@@ -133,6 +134,35 @@ export async function sendOrderConfirmation(order: any) {
 
     console.log(`[Notification] Preparing for Order #${order_number} | Phone: ${phone ? 'Present' : 'Missing'} | Tracking: ${trackingNumber || 'None'}`);
 
+    // Fetch order items to get preorder_shipping info
+    let shippingNotes: string[] = [];
+    try {
+        const { data: items } = await supabase
+            .from('order_items')
+            .select('product_name, metadata')
+            .eq('order_id', id);
+        if (items) {
+            for (const item of items) {
+                const preorder = item.metadata?.preorder_shipping;
+                if (preorder) {
+                    shippingNotes.push(`${item.product_name}: ${preorder}`);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[Notification] Could not fetch order items for shipping notes');
+    }
+
+    const shippingNotesHtml = shippingNotes.length > 0
+        ? `<div style="background-color:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:12px 0;">
+            <p style="font-weight:bold;color:#92400e;margin:0 0 4px;">Shipping Notes:</p>
+            ${shippingNotes.map(n => `<p style="color:#92400e;margin:2px 0;">⏱ ${n}</p>`).join('')}
+           </div>`
+        : '';
+    const shippingNotesSms = shippingNotes.length > 0
+        ? ` Note: ${shippingNotes.join('; ')}.`
+        : '';
+
     // 1. Email to Customer
     const customerEmailHtml = `
     <h1>Order Confirmation</h1>
@@ -141,6 +171,7 @@ export async function sendOrderConfirmation(order: any) {
     <p><strong>Order ID:</strong> ${order_number || id}</p>
     <p><strong>Tracking Number:</strong> ${trackingNumber || 'Generating...'}</p>
     <p><strong>Total:</strong> GH₵${Number(total).toFixed(2)}</p>
+    ${shippingNotesHtml}
     <br/>
     <p>Track your order here: <a href="${trackingUrl}">${trackingUrl}</a></p>
     <br/>
@@ -160,6 +191,7 @@ export async function sendOrderConfirmation(order: any) {
     <p><strong>Tracking:</strong> ${trackingNumber}</p>
     <p><strong>Customer:</strong> ${name} (${email})</p>
     <p><strong>Total:</strong> GH₵${Number(total).toFixed(2)}</p>
+    ${shippingNotesHtml}
     <p><a href="${baseUrl}/admin/orders/${id}">View Order</a></p>
   `;
 
@@ -172,8 +204,8 @@ export async function sendOrderConfirmation(order: any) {
     // 3. SMS to Customer (if phone exists)
     if (phone) {
         const smsMessage = trackingNumber
-            ? `Hi ${name}, your order #${order_number || id} is confirmed! Tracking: ${trackingNumber}. Track here: ${trackingUrl}`
-            : `Hi ${name}, your order #${order_number || id} at Sarah Lawson Imports is confirmed! Track here: ${trackingUrl}`;
+            ? `Hi ${name}, your order #${order_number || id} is confirmed! Tracking: ${trackingNumber}. Track here: ${trackingUrl}${shippingNotesSms}`
+            : `Hi ${name}, your order #${order_number || id} at Sarah Lawson Imports is confirmed! Track here: ${trackingUrl}${shippingNotesSms}`;
         
         await sendSMS({
             to: phone,
