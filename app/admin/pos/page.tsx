@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import Image from 'next/image';
 
 interface Product {
     id: string;
@@ -38,10 +37,12 @@ export default function POSPage() {
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [customers, setCustomers] = useState<Customer[]>([]);
+    const [customerSearch, setCustomerSearch] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [amountTendered, setAmountTendered] = useState<string>('');
     const [processing, setProcessing] = useState(false);
     const [completedOrder, setCompletedOrder] = useState<any>(null);
+    const [checkoutError, setCheckoutError] = useState<string | null>(null);
     const [guestDetails, setGuestDetails] = useState({
         firstName: '',
         lastName: '',
@@ -84,11 +85,12 @@ export default function POSPage() {
                 setCategories(['All', ...cats]);
             }
 
-            // Fetch Customers (Top 50 for selection)
+            // Fetch Customers from customers table (not profiles)
             const { data: custData } = await supabase
-                .from('profiles')
+                .from('customers')
                 .select('id, full_name, email, phone')
-                .limit(50);
+                .order('full_name')
+                .limit(200);
 
             if (custData) setCustomers(custData);
 
@@ -140,57 +142,138 @@ export default function POSPage() {
         });
     }, [products, searchQuery, activeCategory]);
 
-    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
-    const tax = cartTotal * 0.0; // Assume 0 tax for now or 15% VAT? keeping simple
-    const grandTotal = cartTotal + tax;
+    // Filter customers by search
+    const filteredCustomers = useMemo(() => {
+        if (!customerSearch.trim()) return customers;
+        const q = customerSearch.toLowerCase();
+        return customers.filter(c =>
+            c.full_name?.toLowerCase().includes(q) ||
+            c.email?.toLowerCase().includes(q) ||
+            c.phone?.includes(q)
+        );
+    }, [customers, customerSearch]);
 
+    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
+    const tax = cartTotal * 0.0;
+    const grandTotal = cartTotal + tax;
     const changeDue = amountTendered ? (parseFloat(amountTendered) - grandTotal) : 0;
+
+    // Get the customer email and phone for the order
+    const getOrderEmail = () => {
+        if (selectedCustomer) return selectedCustomer.email;
+        return guestDetails.email || 'pos-walkin@store.local';
+    };
+
+    const getOrderPhone = () => {
+        if (selectedCustomer) return selectedCustomer.phone || '';
+        return guestDetails.phone || '';
+    };
+
+    const getCustomerFullName = () => {
+        if (selectedCustomer) return selectedCustomer.full_name || '';
+        return `${guestDetails.firstName} ${guestDetails.lastName}`.trim();
+    };
+
+    // Validate before checkout
+    const validateCheckout = (): string | null => {
+        if (cart.length === 0) return 'Cart is empty';
+
+        if (paymentMethod === 'momo') {
+            const phone = getOrderPhone();
+            if (!phone) return 'Phone number is required for Mobile Money payment';
+        }
+
+        if (paymentMethod === 'cash') {
+            const tendered = parseFloat(amountTendered || '0');
+            if (tendered < grandTotal) return 'Insufficient amount tendered';
+        }
+
+        // For guest, require at least a name or phone
+        if (!selectedCustomer) {
+            const hasName = guestDetails.firstName.trim() || guestDetails.lastName.trim();
+            const hasContact = guestDetails.email.trim() || guestDetails.phone.trim();
+            if (!hasName && !hasContact) return 'Please enter customer name or contact info';
+        }
+
+        return null;
+    };
 
     // Checkout Logic
     const handleCheckout = async () => {
-        if (cart.length === 0) return;
+        const validationError = validateCheckout();
+        if (validationError) {
+            setCheckoutError(validationError);
+            return;
+        }
+
         setProcessing(true);
+        setCheckoutError(null);
 
         try {
-            // 1. Create Order
-            const shippingAddr = selectedCustomer ? {} : {
+            const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            const customerName = getCustomerFullName();
+            const customerEmail = getOrderEmail();
+            const customerPhone = getOrderPhone();
+
+            const isCashOrCard = paymentMethod === 'cash' || paymentMethod === 'card';
+
+            // Build shipping/billing address
+            const addressData = selectedCustomer ? {
+                firstName: selectedCustomer.full_name?.split(' ')[0] || '',
+                lastName: selectedCustomer.full_name?.split(' ').slice(1).join(' ') || '',
+                email: selectedCustomer.email,
+                phone: selectedCustomer.phone || '',
+                pos_sale: true
+            } : {
                 firstName: guestDetails.firstName,
                 lastName: guestDetails.lastName,
                 email: guestDetails.email,
                 phone: guestDetails.phone,
-                address: guestDetails.address
+                address: guestDetails.address,
+                pos_sale: true
             };
 
-            const orderMeta = selectedCustomer ? {} : {
-                guest_checkout: true,
-                first_name: guestDetails.firstName,
-                last_name: guestDetails.lastName,
-                phone: guestDetails.phone,
-                email: guestDetails.email
-            };
-
+            // 1. Create Order
             const { data: order, error: orderError } = await supabase
                 .from('orders')
-                .insert({
-                    user_id: selectedCustomer?.id || null,
+                .insert([{
+                    order_number: orderNumber,
+                    user_id: null,
+                    email: customerEmail,
+                    phone: customerPhone,
+                    status: isCashOrCard ? 'processing' : 'pending',
+                    payment_status: isCashOrCard ? 'paid' : 'pending',
+                    currency: 'GHS',
+                    subtotal: cartTotal,
+                    tax_total: tax,
+                    shipping_total: 0,
+                    discount_total: 0,
                     total: grandTotal,
-                    status: 'completed',
-                    payment_intent: `POS-${Date.now()}`,
-                    shipping_status: 'delivered',
-                    shipping_address: shippingAddr,
-                    metadata: orderMeta
-                })
+                    shipping_method: 'pos_pickup',
+                    payment_method: paymentMethod === 'momo' ? 'moolre' : paymentMethod,
+                    shipping_address: addressData,
+                    billing_address: addressData,
+                    metadata: {
+                        pos_sale: true,
+                        first_name: addressData.firstName,
+                        last_name: addressData.lastName,
+                        phone: customerPhone
+                    }
+                }])
                 .select()
                 .single();
 
             if (orderError) throw orderError;
 
-            // 2. Create Order Items
+            // 2. Create Order Items (with product_name, unit_price, total_price)
             const orderItems = cart.map(item => ({
                 order_id: order.id,
                 product_id: item.id,
+                product_name: item.name,
                 quantity: item.cartQuantity,
-                price: item.price
+                unit_price: item.price,
+                total_price: item.price * item.cartQuantity,
+                metadata: { image: item.image, pos_sale: true }
             }));
 
             const { error: itemsError } = await supabase
@@ -199,37 +282,104 @@ export default function POSPage() {
 
             if (itemsError) throw itemsError;
 
-            // Success
-            setCompletedOrder({ id: order.id, total: grandTotal, items: cart });
-            setCart([]);
+            // 3. Upsert Customer Record (email is required in customers table)
+            const hasRealEmail = customerEmail && customerEmail !== 'pos-walkin@store.local';
+            const upsertEmail = hasRealEmail
+                ? customerEmail
+                : customerPhone
+                    ? `${customerPhone.replace(/[^0-9]/g, '')}@pos.local`
+                    : null;
 
-            // Send POS Notification
-            const notifEmail = selectedCustomer ? selectedCustomer.email : guestDetails.email;
-            if (notifEmail) {
-                const notifPhone = selectedCustomer ? selectedCustomer.phone : guestDetails.phone;
-                const notifName = selectedCustomer ? (selectedCustomer.full_name || 'Customer') : guestDetails.firstName;
+            if (upsertEmail) {
+                try {
+                    await supabase.rpc('upsert_customer_from_order', {
+                        p_email: upsertEmail,
+                        p_phone: customerPhone || null,
+                        p_full_name: customerName || null,
+                        p_first_name: addressData.firstName || null,
+                        p_last_name: addressData.lastName || null,
+                        p_user_id: null,
+                        p_address: addressData
+                    });
+                    // Refresh customer list silently
+                    supabase.from('customers').select('id, full_name, email, phone').order('full_name').limit(200)
+                        .then(({ data }) => { if (data) setCustomers(data); });
+                } catch (custErr) {
+                    console.error('Customer upsert error (non-fatal):', custErr);
+                }
+            }
 
-                fetch('/api/notifications', {
+            // 4. If Cash or Card — mark as paid, reduce stock
+            if (isCashOrCard) {
+                // Call mark_order_paid to reduce stock (uses order_number as order_ref)
+                try {
+                    await supabase.rpc('mark_order_paid', {
+                        order_ref: orderNumber,
+                        moolre_ref: `POS-${paymentMethod.toUpperCase()}-${Date.now()}`
+                    });
+                } catch (stockErr) {
+                    console.error('Stock reduction error (non-fatal):', stockErr);
+                }
+
+                // Success — show completed
+                setCompletedOrder({ id: order.id, orderNumber, total: grandTotal, items: cart });
+                setCart([]);
+
+                // Send notification
+                if (customerEmail && customerEmail !== 'pos-walkin@store.local') {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    fetch('/api/notifications', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
+                        },
+                        body: JSON.stringify({
+                            type: 'order_created',
+                            payload: {
+                                ...order,
+                                order_number: orderNumber,
+                                email: customerEmail,
+                                shipping_address: addressData
+                            }
+                        })
+                    }).catch(err => console.error('POS Notification error:', err));
+                }
+            }
+
+            // 5. If Momo — initiate Moolre payment
+            if (paymentMethod === 'momo') {
+                const paymentRes = await fetch('/api/payment/moolre', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        type: 'order_created',
-                        payload: {
-                            ...order,
-                            order_number: order.id,
-                            email: notifEmail,
-                            shipping_address: {
-                                firstName: notifName.split(' ')[0],
-                                phone: notifPhone
-                            }
-                        }
+                        orderId: orderNumber,
+                        amount: grandTotal,
+                        customerEmail: customerEmail
                     })
-                }).catch(err => console.error('POS Notification error:', err));
+                });
+
+                const paymentResult = await paymentRes.json();
+
+                if (!paymentResult.success) {
+                    throw new Error(paymentResult.message || 'Failed to initiate Mobile Money payment');
+                }
+
+                // Show completed with payment link
+                setCompletedOrder({
+                    id: order.id,
+                    orderNumber,
+                    total: grandTotal,
+                    items: cart,
+                    paymentUrl: paymentResult.url,
+                    paymentPending: true
+                });
+                setCart([]);
             }
 
         } catch (error: any) {
             console.error('Checkout failed:', error);
-            alert('Checkout failed: ' + error.message);
+            setCheckoutError(error.message || 'Checkout failed. Please try again.');
         } finally {
             setProcessing(false);
         }
@@ -238,9 +388,11 @@ export default function POSPage() {
     const resetCheckout = () => {
         setShowCheckoutModal(false);
         setCompletedOrder(null);
-        setCompletedOrder(null);
         setAmountTendered('');
         setSelectedCustomer(null);
+        setCustomerSearch('');
+        setCheckoutError(null);
+        setPaymentMethod('cash');
         setGuestDetails({
             firstName: '',
             lastName: '',
@@ -428,7 +580,7 @@ export default function POSPage() {
                             Clear
                         </button>
                         <button
-                            onClick={() => setShowCheckoutModal(true)}
+                            onClick={() => { setShowCheckoutModal(true); setCheckoutError(null); }}
                             disabled={cart.length === 0}
                             className="px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -445,19 +597,58 @@ export default function POSPage() {
                         {completedOrder ? (
                             // SUCCESS STATE
                             <div className="p-8 text-center flex flex-col items-center justify-center space-y-6 overflow-y-auto">
-                                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
-                                    <i className="ri-checkbox-circle-fill text-5xl text-emerald-600"></i>
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center ${completedOrder.paymentPending ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                                    <i className={`text-5xl ${completedOrder.paymentPending ? 'ri-time-line text-amber-600' : 'ri-checkbox-circle-fill text-emerald-600'}`}></i>
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-bold text-gray-900">Payment Successful!</h2>
-                                    <p className="text-gray-500 mt-1">Order #{completedOrder.id.slice(0, 8)} completed.</p>
-                                    <p className="text-lg font-semibold text-gray-900 mt-2">Change Due: GH₵{changeDue > 0 ? changeDue.toFixed(2) : '0.00'}</p>
+                                    <h2 className="text-2xl font-bold text-gray-900">
+                                        {completedOrder.paymentPending ? 'Payment Link Generated!' : 'Payment Successful!'}
+                                    </h2>
+                                    <p className="text-gray-500 mt-1">Order #{completedOrder.orderNumber}</p>
+
+                                    {!completedOrder.paymentPending && paymentMethod === 'cash' && changeDue > 0 && (
+                                        <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                                            <p className="text-sm text-emerald-700">Change Due</p>
+                                            <p className="text-2xl font-bold text-emerald-800">GH₵{changeDue.toFixed(2)}</p>
+                                        </div>
+                                    )}
+
+                                    {completedOrder.paymentPending && completedOrder.paymentUrl && (
+                                        <div className="mt-4 space-y-3">
+                                            <p className="text-sm text-gray-600">
+                                                Customer can pay using this link:
+                                            </p>
+                                            <a
+                                                href={completedOrder.paymentUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center px-6 py-3 bg-amber-600 text-white rounded-xl font-semibold hover:bg-amber-700 transition-colors"
+                                            >
+                                                <i className="ri-external-link-line mr-2"></i>
+                                                Open Payment Page
+                                            </a>
+                                            <div className="mt-2">
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(completedOrder.paymentUrl);
+                                                        alert('Payment link copied!');
+                                                    }}
+                                                    className="text-sm text-emerald-700 hover:text-emerald-800 font-medium underline"
+                                                >
+                                                    <i className="ri-file-copy-line mr-1"></i>
+                                                    Copy Link
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="grid grid-cols-2 gap-4 w-full">
-                                    <button onClick={() => window.print()} className="py-3 px-4 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50">
+
+                                <div className="grid grid-cols-2 gap-4 w-full mt-4">
+                                    <button onClick={() => window.print()} className="py-3 px-4 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
+                                        <i className="ri-printer-line mr-2"></i>
                                         Print Receipt
                                     </button>
-                                    <button onClick={resetCheckout} className="py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700">
+                                    <button onClick={resetCheckout} className="py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors">
                                         New Order
                                     </button>
                                 </div>
@@ -473,6 +664,14 @@ export default function POSPage() {
                                 </div>
 
                                 <div className="p-6 space-y-6 overflow-y-auto">
+                                    {/* Error Display */}
+                                    {checkoutError && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
+                                            <i className="ri-error-warning-line text-red-500 mt-0.5"></i>
+                                            <p className="text-sm text-red-700">{checkoutError}</p>
+                                        </div>
+                                    )}
+
                                     {/* Total Display */}
                                     <div className="text-center py-4 bg-emerald-50 rounded-xl border border-emerald-100">
                                         <p className="text-sm text-emerald-800 uppercase tracking-wide font-semibold">Amount to Pay</p>
@@ -481,25 +680,60 @@ export default function POSPage() {
 
                                     {/* Customer Select */}
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Customer (Optional)</label>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Customer</label>
+
+                                        {/* Customer search input */}
+                                        <div className="relative mb-2">
+                                            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                            <input
+                                                type="text"
+                                                placeholder="Search customers by name, email, or phone..."
+                                                value={customerSearch}
+                                                onChange={(e) => setCustomerSearch(e.target.value)}
+                                                className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                                            />
+                                        </div>
+
                                         <select
-                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none mb-4"
-                                            onChange={(e) => setSelectedCustomer(customers.find(c => c.id === e.target.value) || null)}
+                                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none mb-2"
+                                            onChange={(e) => {
+                                                setSelectedCustomer(customers.find(c => c.id === e.target.value) || null);
+                                            }}
                                             value={selectedCustomer?.id || ''}
                                         >
-                                            <option value="">Walk-in Customer / Guest</option>
-                                            {customers.map(c => (
-                                                <option key={c.id} value={c.id}>{c.full_name || c.email} ({c.email})</option>
+                                            <option value="">Walk-in Customer / New Guest</option>
+                                            {filteredCustomers.map(c => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.full_name || 'No Name'} — {c.phone || c.email}
+                                                </option>
                                             ))}
                                         </select>
 
+                                        {selectedCustomer && (
+                                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-2 flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-semibold text-gray-900 text-sm">{selectedCustomer.full_name}</p>
+                                                    <p className="text-xs text-gray-600">{selectedCustomer.email} {selectedCustomer.phone && `| ${selectedCustomer.phone}`}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => setSelectedCustomer(null)}
+                                                    className="text-gray-400 hover:text-red-500 text-sm"
+                                                >
+                                                    <i className="ri-close-line"></i>
+                                                </button>
+                                            </div>
+                                        )}
+
                                         {!selectedCustomer && (
-                                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2 space-y-3 animate-in fade-in slide-in-from-top-2">
-                                                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-200 pb-2 mb-2">Guest Details</h4>
+                                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2 space-y-3">
+                                                <h4 className="text-sm font-bold text-gray-900 border-b border-gray-200 pb-2 mb-2">
+                                                    New Customer Details
+                                                    <span className="text-xs font-normal text-gray-500 ml-2">(will be saved to customer list)</span>
+                                                </h4>
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <input
                                                         type="text"
-                                                        placeholder="First Name"
+                                                        placeholder="First Name *"
                                                         value={guestDetails.firstName}
                                                         onChange={e => setGuestDetails({ ...guestDetails, firstName: e.target.value })}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
@@ -515,17 +749,18 @@ export default function POSPage() {
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <input
                                                         type="email"
-                                                        placeholder="Email (Optional)"
+                                                        placeholder="Email"
                                                         value={guestDetails.email}
                                                         onChange={e => setGuestDetails({ ...guestDetails, email: e.target.value })}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
                                                     />
                                                     <input
                                                         type="tel"
-                                                        placeholder="Phone (Optional)"
+                                                        placeholder={paymentMethod === 'momo' ? 'Phone (Required) *' : 'Phone'}
                                                         value={guestDetails.phone}
                                                         onChange={e => setGuestDetails({ ...guestDetails, phone: e.target.value })}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm"
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500 text-sm ${paymentMethod === 'momo' && !guestDetails.phone ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                                                            }`}
                                                     />
                                                 </div>
                                             </div>
@@ -536,16 +771,21 @@ export default function POSPage() {
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
                                         <div className="grid grid-cols-3 gap-3">
-                                            {['Cash', 'Card', 'Momo'].map(method => (
+                                            {[
+                                                { key: 'cash', label: 'Cash', icon: 'ri-money-cny-circle-line' },
+                                                { key: 'card', label: 'Card', icon: 'ri-bank-card-line' },
+                                                { key: 'momo', label: 'MoMo', icon: 'ri-smartphone-line' }
+                                            ].map(method => (
                                                 <button
-                                                    key={method}
-                                                    onClick={() => setPaymentMethod(method.toLowerCase())}
-                                                    className={`py-3 rounded-lg font-medium border transition-all ${paymentMethod === method.toLowerCase()
+                                                    key={method.key}
+                                                    onClick={() => setPaymentMethod(method.key)}
+                                                    className={`py-3 rounded-lg font-medium border transition-all flex flex-col items-center space-y-1 ${paymentMethod === method.key
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600'
                                                         : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                                         }`}
                                                 >
-                                                    {method}
+                                                    <i className={`${method.icon} text-xl`}></i>
+                                                    <span className="text-sm">{method.label}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -572,6 +812,44 @@ export default function POSPage() {
                                             {changeDue < 0 && amountTendered && (
                                                 <p className="text-right text-red-500 font-medium mt-2">Insufficient amount</p>
                                             )}
+                                            {/* Quick amount buttons */}
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                {[grandTotal, Math.ceil(grandTotal / 10) * 10, Math.ceil(grandTotal / 50) * 50, Math.ceil(grandTotal / 100) * 100].filter((v, i, a) => a.indexOf(v) === i).map(amount => (
+                                                    <button
+                                                        key={amount}
+                                                        onClick={() => setAmountTendered(amount.toString())}
+                                                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                                                    >
+                                                        GH₵{amount.toFixed(2)}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* MoMo info */}
+                                    {paymentMethod === 'momo' && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                            <div className="flex items-start space-x-2">
+                                                <i className="ri-information-line text-amber-600 mt-0.5"></i>
+                                                <div className="text-sm text-amber-800">
+                                                    <p className="font-semibold">Mobile Money Payment</p>
+                                                    <p className="mt-1">A Moolre payment link will be generated. The customer can pay via their phone, or you can open the link on your device.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Card info */}
+                                    {paymentMethod === 'card' && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                            <div className="flex items-start space-x-2">
+                                                <i className="ri-bank-card-line text-blue-600 mt-0.5"></i>
+                                                <div className="text-sm text-blue-800">
+                                                    <p className="font-semibold">Card Payment</p>
+                                                    <p className="mt-1">Process the card payment on your POS terminal, then tap &quot;Complete Payment&quot; to confirm.</p>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -579,13 +857,18 @@ export default function POSPage() {
                                 <div className="p-6 border-t border-gray-100 bg-gray-50 shrink-0">
                                     <button
                                         onClick={handleCheckout}
-                                        disabled={processing || (paymentMethod === 'cash' && (parseFloat(amountTendered || '0') < grandTotal))}
+                                        disabled={processing}
                                         className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center space-x-2"
                                     >
                                         {processing ? (
                                             <>
                                                 <i className="ri-loader-4-line animate-spin"></i>
                                                 <span>Processing...</span>
+                                            </>
+                                        ) : paymentMethod === 'momo' ? (
+                                            <>
+                                                <i className="ri-smartphone-line"></i>
+                                                <span>Generate Payment Link</span>
                                             </>
                                         ) : (
                                             <>
