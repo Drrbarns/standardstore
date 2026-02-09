@@ -37,15 +37,156 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         return `${prefix}-${timestamp}-${random}`;
     };
 
-    // Variants currently simple local state
-    // Map DB 'quantity' field to 'stock' for form usage, and option2 to 'color'
-    const [variants, setVariants] = useState<any[]>(
-        (initialData?.product_variants || []).map((v: any) => ({
-            ...v,
-            stock: v.stock ?? v.quantity ?? 0,
-            color: v.color ?? v.option2 ?? ''
-        }))
-    );
+    // --- Variant System ---
+    // Preset color palette
+    const colorPresets = [
+        { name: 'Black', hex: '#000000' },
+        { name: 'White', hex: '#FFFFFF' },
+        { name: 'Red', hex: '#EF4444' },
+        { name: 'Blue', hex: '#3B82F6' },
+        { name: 'Navy', hex: '#1E3A5F' },
+        { name: 'Green', hex: '#22C55E' },
+        { name: 'Yellow', hex: '#EAB308' },
+        { name: 'Pink', hex: '#EC4899' },
+        { name: 'Purple', hex: '#A855F7' },
+        { name: 'Orange', hex: '#F97316' },
+        { name: 'Gray', hex: '#6B7280' },
+        { name: 'Brown', hex: '#92400E' },
+        { name: 'Beige', hex: '#D2B48C' },
+        { name: 'Maroon', hex: '#800000' },
+        { name: 'Teal', hex: '#14B8A6' },
+        { name: 'Cream', hex: '#FFFDD0' },
+        { name: 'Gold', hex: '#D4AF37' },
+        { name: 'Silver', hex: '#C0C0C0' },
+    ];
+    const sizePresets = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+
+    // Parse existing variants to extract unique colors and sizes
+    const existingVariants = (initialData?.product_variants || []).map((v: any) => ({
+        ...v,
+        stock: v.stock ?? v.quantity ?? 0,
+        color: v.color ?? v.option2 ?? '',
+        size: v.name || ''
+    }));
+
+    const [selectedColors, setSelectedColors] = useState<{ name: string; hex: string }[]>(() => {
+        const colors = new Map<string, string>();
+        existingVariants.forEach((v: any) => {
+            if (v.color) {
+                const preset = colorPresets.find(c => c.name.toLowerCase() === v.color.toLowerCase());
+                colors.set(v.color, preset?.hex || '#888888');
+            }
+        });
+        return Array.from(colors.entries()).map(([name, hex]) => ({ name, hex }));
+    });
+
+    const [selectedSizes, setSelectedSizes] = useState<string[]>(() => {
+        const sizes = new Set<string>();
+        existingVariants.forEach((v: any) => {
+            if (v.size) sizes.add(v.size);
+        });
+        return Array.from(sizes);
+    });
+
+    const [customColorName, setCustomColorName] = useState('');
+    const [customColorHex, setCustomColorHex] = useState('#888888');
+    const [customSize, setCustomSize] = useState('');
+
+    // Build variants from colors × sizes (or just sizes, or just colors)
+    const buildVariantKey = (color: string, size: string) => `${color}|||${size}`;
+
+    // Store variant data (price, stock) in a map keyed by "color|||size"
+    const [variantData, setVariantData] = useState<Record<string, { price: string; stock: string; sku: string }>>(() => {
+        const data: Record<string, { price: string; stock: string; sku: string }> = {};
+        existingVariants.forEach((v: any) => {
+            const key = buildVariantKey(v.color || '', v.size || '');
+            data[key] = {
+                price: v.price?.toString() || '',
+                stock: v.stock?.toString() || '0',
+                sku: v.sku || ''
+            };
+        });
+        return data;
+    });
+
+    // Computed: all variant combinations
+    const variantCombinations = (() => {
+        const combos: { color: string; colorHex: string; size: string; key: string }[] = [];
+        const colors = selectedColors.length > 0 ? selectedColors : [{ name: '', hex: '' }];
+        const sizes = selectedSizes.length > 0 ? selectedSizes : [''];
+
+        for (const color of colors) {
+            for (const size of sizes) {
+                if (!color.name && !size) continue; // skip if both empty
+                const key = buildVariantKey(color.name, size);
+                combos.push({ color: color.name, colorHex: color.hex, size, key });
+            }
+        }
+        return combos;
+    })();
+
+    // Build the flat variants array for saving (used by handleSubmit)
+    const variants = variantCombinations.map(combo => {
+        const d = variantData[combo.key] || { price: price, stock: '0', sku: '' };
+        return {
+            name: combo.size,
+            color: combo.color,
+            sku: d.sku,
+            price: d.price || price,
+            stock: d.stock || '0'
+        };
+    });
+
+    const updateVariantField = (key: string, field: string, value: string) => {
+        setVariantData(prev => ({
+            ...prev,
+            [key]: { ...prev[key] || { price: price, stock: '0', sku: '' }, [field]: value }
+        }));
+    };
+
+    // Bulk set price/stock for all variants
+    const bulkSetField = (field: 'price' | 'stock', value: string) => {
+        setVariantData(prev => {
+            const updated = { ...prev };
+            variantCombinations.forEach(combo => {
+                updated[combo.key] = { ...updated[combo.key] || { price: price, stock: '0', sku: '' }, [field]: value };
+            });
+            return updated;
+        });
+    };
+
+    const toggleColor = (color: { name: string; hex: string }) => {
+        setSelectedColors(prev => {
+            const exists = prev.find(c => c.name === color.name);
+            if (exists) return prev.filter(c => c.name !== color.name);
+            return [...prev, color];
+        });
+    };
+
+    const toggleSize = (size: string) => {
+        setSelectedSizes(prev => {
+            if (prev.includes(size)) return prev.filter(s => s !== size);
+            return [...prev, size];
+        });
+    };
+
+    const addCustomColor = () => {
+        if (!customColorName.trim()) return;
+        const exists = selectedColors.find(c => c.name.toLowerCase() === customColorName.trim().toLowerCase());
+        if (!exists) {
+            setSelectedColors(prev => [...prev, { name: customColorName.trim(), hex: customColorHex }]);
+        }
+        setCustomColorName('');
+        setCustomColorHex('#888888');
+    };
+
+    const addCustomSize = () => {
+        if (!customSize.trim()) return;
+        if (!selectedSizes.includes(customSize.trim())) {
+            setSelectedSizes(prev => [...prev, customSize.trim()]);
+        }
+        setCustomSize('');
+    };
 
     // Images
     const [images, setImages] = useState<any[]>(initialData?.product_images || []);
@@ -126,26 +267,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         setImages(images.filter((_, idx) => idx !== indexToRemove));
     };
 
-    const handleAddVariant = () => {
-        setVariants([...variants, {
-            name: '',
-            sku: '',
-            price: price, // Default to main price
-            stock: 0,
-            color: '',
-            isNew: true
-        }]);
-    };
-
-    const handleRemoveVariant = (index: number) => {
-        setVariants(variants.filter((_, idx) => idx !== index));
-    };
-
-    const handleVariantChange = (index: number, field: string, value: any) => {
-        const updatedVariants = [...variants];
-        updatedVariants[index] = { ...updatedVariants[index], [field]: value };
-        setVariants(updatedVariants);
-    };
+    // Variant helpers removed — variants are now auto-generated from selectedColors × selectedSizes
 
     const handleSubmit = async () => {
         try {
@@ -231,15 +353,19 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 }
 
                 if (variants.length > 0) {
-                    const variantInserts = variants.map(v => ({
-                        product_id: productId,
-                        name: v.name,
-                        sku: v.sku || null,
-                        price: parseFloat(v.price) || 0,
-                        quantity: parseInt(v.stock) || 0,
-                        option1: v.name,
-                        option2: v.color?.trim() || null
-                    }));
+                    const variantInserts = variants.map(v => {
+                        const colorHex = selectedColors.find(c => c.name === v.color)?.hex || null;
+                        return {
+                            product_id: productId,
+                            name: v.name || v.color || 'Default',
+                            sku: v.sku || null,
+                            price: parseFloat(v.price) || 0,
+                            quantity: parseInt(v.stock) || 0,
+                            option1: v.name || null,
+                            option2: v.color?.trim() || null,
+                            metadata: colorHex ? { color_hex: colorHex } : {}
+                        };
+                    });
                     const { error: varError } = await supabase.from('product_variants').insert(variantInserts);
                     if (varError) throw varError;
                 }
@@ -564,101 +690,269 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                     )}
 
                     {activeTab === 'variants' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
-                                    <p className="text-gray-600 mt-1">Manage different versions of this product</p>
-                                </div>
-                                <button
-                                    onClick={handleAddVariant}
-                                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer"
-                                >
-                                    <i className="ri-add-line mr-2"></i>
-                                    Add Variant
-                                </button>
+                        <div className="space-y-8">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
+                                <p className="text-gray-600 mt-1">Select colors and sizes below — variants are generated automatically</p>
                             </div>
 
-                            {variants.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Variant Name</th>
-                                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Color</th>
-                                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">SKU</th>
-                                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price</th>
-                                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Stock</th>
-                                                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {variants.map((variant: any, idx: number) => (
-                                                <tr key={idx} className="border-b border-gray-100">
-                                                    <td className="py-4 px-4">
-                                                        <input
-                                                            type="text"
-                                                            value={variant.name || ''}
-                                                            onChange={(e) => handleVariantChange(idx, 'name', e.target.value)}
-                                                            placeholder="e.g. 100ml, Large"
-                                                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
-                                                        />
-                                                    </td>
-                                                    <td className="py-4 px-4">
-                                                        <input
-                                                            type="text"
-                                                            value={variant.color || ''}
-                                                            onChange={(e) => handleVariantChange(idx, 'color', e.target.value)}
-                                                            placeholder="e.g. Red, Blue"
-                                                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
-                                                        />
-                                                    </td>
-                                                    <td className="py-4 px-4">
-                                                        <input
-                                                            type="text"
-                                                            value={variant.sku || ''}
-                                                            onChange={(e) => handleVariantChange(idx, 'sku', e.target.value)}
-                                                            placeholder="SKU"
-                                                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-mono"
-                                                        />
-                                                    </td>
-                                                    <td className="py-4 px-4">
-                                                        <input
-                                                            type="number"
-                                                            value={variant.price}
-                                                            onChange={(e) => handleVariantChange(idx, 'price', e.target.value)}
-                                                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
-                                                            step="0.01"
-                                                        />
-                                                    </td>
-                                                    <td className="py-4 px-4">
-                                                        <input
-                                                            type="number"
-                                                            value={variant.stock || 0}
-                                                            onChange={(e) => handleVariantChange(idx, 'stock', e.target.value)}
-                                                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm"
-                                                        />
-                                                    </td>
-                                                    <td className="py-4 px-4">
-                                                        <button
-                                                            onClick={() => handleRemoveVariant(idx)}
-                                                            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                                        >
-                                                            <i className="ri-delete-bin-line text-lg"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <p className="text-xs text-gray-500 mt-3 px-4">
-                                        <i className="ri-information-line mr-1"></i>
-                                        <strong>Name</strong> is for size/type (e.g. 100ml, Large). <strong>Color</strong> is optional — customers will see color options as separate selectors on the product page.
-                                    </p>
+                            {/* STEP 1: Colors */}
+                            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-900 mb-1 flex items-center">
+                                    <i className="ri-palette-line mr-2 text-lg text-emerald-700"></i>
+                                    Step 1: Select Colors
+                                    {selectedColors.length > 0 && (
+                                        <span className="ml-2 bg-emerald-100 text-emerald-800 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                            {selectedColors.length} selected
+                                        </span>
+                                    )}
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-4">Click colors to add/remove. Skip if product has no color options.</p>
+
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {colorPresets.map(color => {
+                                        const isSelected = selectedColors.some(c => c.name === color.name);
+                                        return (
+                                            <button
+                                                key={color.name}
+                                                onClick={() => toggleColor(color)}
+                                                className={`flex items-center space-x-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                                                    isSelected
+                                                        ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600'
+                                                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                                                }`}
+                                                title={color.name}
+                                            >
+                                                <span
+                                                    className="w-5 h-5 rounded-full border border-gray-300 flex-shrink-0"
+                                                    style={{ backgroundColor: color.hex }}
+                                                ></span>
+                                                <span className={isSelected ? 'text-emerald-800' : 'text-gray-700'}>{color.name}</span>
+                                                {isSelected && <i className="ri-check-line text-emerald-700"></i>}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                            ) : (
+
+                                {/* Custom color */}
+                                <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
+                                    <input
+                                        type="color"
+                                        value={customColorHex}
+                                        onChange={(e) => setCustomColorHex(e.target.value)}
+                                        className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+                                        title="Pick a custom color"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={customColorName}
+                                        onChange={(e) => setCustomColorName(e.target.value)}
+                                        placeholder="Custom color name"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        onKeyDown={(e) => e.key === 'Enter' && addCustomColor()}
+                                    />
+                                    <button
+                                        onClick={addCustomColor}
+                                        disabled={!customColorName.trim()}
+                                        className="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Add Color
+                                    </button>
+                                </div>
+
+                                {/* Selected colors summary */}
+                                {selectedColors.length > 0 && (
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        {selectedColors.map(color => (
+                                            <span key={color.name} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm shadow-sm">
+                                                <span className="w-3.5 h-3.5 rounded-full border border-gray-300" style={{ backgroundColor: color.hex }}></span>
+                                                {color.name}
+                                                <button onClick={() => toggleColor(color)} className="text-gray-400 hover:text-red-500 ml-1">
+                                                    <i className="ri-close-line text-sm"></i>
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* STEP 2: Sizes */}
+                            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-900 mb-1 flex items-center">
+                                    <i className="ri-ruler-line mr-2 text-lg text-blue-600"></i>
+                                    Step 2: Select Sizes
+                                    {selectedSizes.length > 0 && (
+                                        <span className="ml-2 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                            {selectedSizes.length} selected
+                                        </span>
+                                    )}
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-4">Click sizes to add/remove. Use custom for volumes (100ml), weights, etc.</p>
+
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {sizePresets.map(size => {
+                                        const isSelected = selectedSizes.includes(size);
+                                        return (
+                                            <button
+                                                key={size}
+                                                onClick={() => toggleSize(size)}
+                                                className={`px-5 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
+                                                    isSelected
+                                                        ? 'border-blue-600 bg-blue-50 text-blue-800 ring-1 ring-blue-600'
+                                                        : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
+                                                }`}
+                                            >
+                                                {size}
+                                                {isSelected && <i className="ri-check-line ml-1.5 text-blue-600"></i>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Custom size */}
+                                <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
+                                    <input
+                                        type="text"
+                                        value={customSize}
+                                        onChange={(e) => setCustomSize(e.target.value)}
+                                        placeholder="Custom size (e.g. 100ml, One Size, 42)"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        onKeyDown={(e) => e.key === 'Enter' && addCustomSize()}
+                                    />
+                                    <button
+                                        onClick={addCustomSize}
+                                        disabled={!customSize.trim()}
+                                        className="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Add Size
+                                    </button>
+                                </div>
+
+                                {/* Selected sizes summary */}
+                                {selectedSizes.length > 0 && (
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        {selectedSizes.map(size => (
+                                            <span key={size} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm shadow-sm font-medium">
+                                                {size}
+                                                <button onClick={() => toggleSize(size)} className="text-gray-400 hover:text-red-500 ml-1">
+                                                    <i className="ri-close-line text-sm"></i>
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* STEP 3: Variant Grid */}
+                            {variantCombinations.length > 0 && (
+                                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                    <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-sm font-bold text-gray-900 flex items-center">
+                                                <i className="ri-grid-line mr-2 text-lg text-purple-600"></i>
+                                                Step 3: Set Price & Stock ({variantCombinations.length} variant{variantCombinations.length > 1 ? 's' : ''})
+                                            </h4>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    const val = prompt('Set price for ALL variants:', price?.toString() || '0');
+                                                    if (val !== null) bulkSetField('price', val);
+                                                }}
+                                                className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
+                                            >
+                                                Bulk Set Price
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const val = prompt('Set stock for ALL variants:', '0');
+                                                    if (val !== null) bulkSetField('stock', val);
+                                                }}
+                                                className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
+                                            >
+                                                Bulk Set Stock
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50 border-b border-gray-200">
+                                                <tr>
+                                                    {selectedColors.length > 0 && (
+                                                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Color</th>
+                                                    )}
+                                                    {selectedSizes.length > 0 && (
+                                                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Size</th>
+                                                    )}
+                                                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Price (GH₵)</th>
+                                                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Stock</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {variantCombinations.map((combo) => {
+                                                    const d = variantData[combo.key] || { price: price, stock: '0', sku: '' };
+                                                    return (
+                                                        <tr key={combo.key} className="border-b border-gray-100 hover:bg-gray-50">
+                                                            {selectedColors.length > 0 && (
+                                                                <td className="py-3 px-4">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span
+                                                                            className="w-5 h-5 rounded-full border border-gray-300 flex-shrink-0"
+                                                                            style={{ backgroundColor: combo.colorHex }}
+                                                                        ></span>
+                                                                        <span className="text-sm font-medium text-gray-900">{combo.color}</span>
+                                                                    </div>
+                                                                </td>
+                                                            )}
+                                                            {selectedSizes.length > 0 && (
+                                                                <td className="py-3 px-4">
+                                                                    <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2.5 py-1 rounded">
+                                                                        {combo.size}
+                                                                    </span>
+                                                                </td>
+                                                            )}
+                                                            <td className="py-3 px-4">
+                                                                <input
+                                                                    type="number"
+                                                                    value={d.price}
+                                                                    onChange={(e) => updateVariantField(combo.key, 'price', e.target.value)}
+                                                                    className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                                    step="0.01"
+                                                                    placeholder={price?.toString() || '0'}
+                                                                />
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <input
+                                                                    type="number"
+                                                                    value={d.stock}
+                                                                    onChange={(e) => updateVariantField(combo.key, 'stock', e.target.value)}
+                                                                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="p-3 bg-emerald-50 border-t border-emerald-100">
+                                        <p className="text-xs text-emerald-800 flex items-center">
+                                            <i className="ri-information-line mr-1.5"></i>
+                                            Total stock across all variants: <strong className="ml-1">{variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0)}</strong>
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {variantCombinations.length === 0 && (
                                 <div className="p-8 text-center text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                                    No variants added yet. Click "Add Variant" to create options like Size or Color.
+                                    <i className="ri-palette-line text-4xl text-gray-300 mb-2 block"></i>
+                                    <p className="font-medium">No variants configured</p>
+                                    <p className="text-sm mt-1">Select colors and/or sizes above to create variant combinations.</p>
+                                    <p className="text-xs mt-2 text-gray-400">You can add just colors, just sizes, or both for a full grid.</p>
                                 </div>
                             )}
                         </div>

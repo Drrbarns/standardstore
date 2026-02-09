@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { cachedQuery } from '@/lib/query-cache';
 import ProductCard from '@/components/ProductCard';
 import ProductReviews from '@/components/ProductReviews';
 import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from '@/components/SEOHead';
@@ -44,27 +46,31 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     async function fetchProduct() {
       try {
         setLoading(true);
-        // Fetch main product
-        // Fetch main product
-        let query = supabase
-          .from('products')
-          .select(`
-            *,
-            categories(name),
-            product_variants(*),
-            product_images(url, position, alt_text)
-          `);
+        // Fetch main product (cached for 2 minutes)
+        const { data: productData, error } = await cachedQuery(
+          `product:${slug}`,
+          async () => {
+            let query = supabase
+              .from('products')
+              .select(`
+                *,
+                categories(name),
+                product_variants(*),
+                product_images(url, position, alt_text)
+              `);
 
-        // Check if slug looks like a UUID
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
 
-        if (isUUID) {
-          query = query.or(`id.eq.${slug},slug.eq.${slug}`);
-        } else {
-          query = query.eq('slug', slug);
-        }
+            if (isUUID) {
+              query = query.or(`id.eq.${slug},slug.eq.${slug}`);
+            } else {
+              query = query.eq('slug', slug);
+            }
 
-        const { data: productData, error } = await query.single();
+            return query.single();
+          },
+          2 * 60 * 1000 // 2 minutes
+        );
 
         if (error || !productData) {
           console.error('Error fetching product:', error);
@@ -73,11 +79,22 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         }
 
         // Transform product data
-        // Map variant colors from option2
+        // Map variant colors from option2, and extract color_hex from metadata
         const rawVariants = (productData.product_variants || []).map((v: any) => ({
           ...v,
-          color: v.option2 || ''
+          color: v.option2 || '',
+          colorHex: v.metadata?.color_hex || ''
         }));
+
+        // Build a color-to-hex map from variants (prefer stored hex, fallback to colorNameToHex)
+        const colorHexMap: Record<string, string> = {};
+        rawVariants.forEach((v: any) => {
+          if (v.color) {
+            if (!colorHexMap[v.color]) {
+              colorHexMap[v.color] = v.colorHex || colorNameToHex(v.color);
+            }
+          }
+        });
 
         const transformedProduct = {
           ...productData,
@@ -88,6 +105,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           stockCount: productData.quantity,
           moq: productData.moq || 1,
           colors: [...new Set(rawVariants.map((v: any) => v.color).filter(Boolean))],
+          colorHexMap,
           variants: rawVariants,
           sizes: rawVariants.map((v: any) => v.name) || [],
           features: ['Premium Quality', 'Authentic Design'],
@@ -114,14 +132,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         setSelectedSize('');
         setSelectedColor('');
 
-        // Fetch related products (e.g., same category)
+        // Fetch related products (cached for 5 minutes)
         if (productData.category_id) {
-          const { data: related } = await supabase
-            .from('products')
-            .select('*, product_images(url, position), product_variants(id, name, price, quantity)')
-            .eq('category_id', productData.category_id)
-            .neq('id', productData.id)
-            .limit(4);
+          const { data: related } = await cachedQuery(
+            `related:${productData.category_id}:${productData.id}`,
+            () => supabase
+              .from('products')
+              .select('*, product_images(url, position), product_variants(id, name, price, quantity)')
+              .eq('category_id', productData.category_id)
+              .neq('id', productData.id)
+              .limit(4),
+            5 * 60 * 1000
+          );
 
           if (related) {
             setRelatedProducts(related.map(p => {
@@ -273,10 +295,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <div className="grid lg:grid-cols-2 gap-12">
               <div>
                 <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-4 shadow-lg border border-gray-100">
-                  <img
+                  <Image
                     src={product.images[selectedImage]}
                     alt={product.name}
-                    className="w-full h-full object-cover object-center"
+                    fill
+                    className="object-cover object-center"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    priority
+                    quality={80}
                   />
                   {discount > 0 && (
                     <span className="absolute top-6 right-6 bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-full">
@@ -294,10 +320,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-emerald-700 shadow-md' : 'border-gray-200 hover:border-gray-300'
                           }`}
                       >
-                        <img
+                        <Image
                           src={image}
                           alt={`${product.name} view ${index + 1}`}
-                          className="w-full h-full object-cover object-center"
+                          fill
+                          className="object-cover object-center"
+                          sizes="(max-width: 1024px) 25vw, 12vw"
+                          quality={60}
                         />
                       </button>
                     ))}
@@ -386,7 +415,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                                 : 'border-gray-300 text-gray-700 hover:border-gray-400'
                               }`}
                           >
-                            <span className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: colorNameToHex(color) }}></span>
+                            <span className="w-5 h-5 rounded-full border border-gray-300 flex-shrink-0 shadow-sm" style={{ backgroundColor: product.colorHexMap?.[color] || colorNameToHex(color) }}></span>
                             <span>{color}</span>
                           </button>
                         );
