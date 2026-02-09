@@ -48,7 +48,7 @@ export default function AdminOrdersPage() {
     { label: 'All Orders', count: 0, status: 'all' },
     { label: 'Pending', count: 0, status: 'pending' },
     { label: 'Processing', count: 0, status: 'processing' },
-    { label: 'Shipped', count: 0, status: 'shipped' },
+    { label: 'Packaged', count: 0, status: 'shipped' },
     { label: 'Delivered', count: 0, status: 'delivered' },
     { label: 'Cancelled', count: 0, status: 'cancelled' }
   ]);
@@ -114,7 +114,7 @@ export default function AdminOrdersPage() {
         { label: 'All Orders', count: confirmedOrders.length, status: 'all' },
         { label: 'Pending', count: confirmedOrders.filter(o => o.status === 'pending').length, status: 'pending' },
         { label: 'Processing', count: confirmedOrders.filter(o => o.status === 'processing').length, status: 'processing' },
-        { label: 'Shipped', count: confirmedOrders.filter(o => o.status === 'shipped').length, status: 'shipped' },
+        { label: 'Packaged', count: confirmedOrders.filter(o => o.status === 'shipped').length, status: 'shipped' },
         { label: 'Delivered', count: confirmedOrders.filter(o => o.status === 'delivered').length, status: 'delivered' },
         { label: 'Cancelled', count: confirmedOrders.filter(o => o.status === 'cancelled').length, status: 'cancelled' }
       ];
@@ -137,6 +137,7 @@ export default function AdminOrdersPage() {
   };
 
   const formatStatus = (status: string) => {
+    if (status === 'shipped') return 'Packaged';
     return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
   };
 
@@ -495,10 +496,10 @@ export default function AdminOrdersPage() {
                 Mark Processing
               </button>
               <button
-                onClick={() => handleBulkAction('Mark as Shipped', 'shipped')}
+                onClick={() => handleBulkAction('Mark as Packaged', 'shipped')}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
-                Mark Shipped
+                Mark Packaged
               </button>
               <button
                 onClick={() => handleBulkAction('Export')}

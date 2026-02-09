@@ -152,8 +152,8 @@ export default function OrderHistory() {
                   </div>
                 </div>
                 <div>
-                  <span className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap capitalize ${getStatusColor(order.status)}`}>
-                    {order.status.replace('_', ' ')}
+                  <span className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap ${getStatusColor(order.status)}`}>
+                    {order.status === 'shipped' ? 'Packaged' : order.status.replace('_', ' ').replace(/^\w/, (c: string) => c.toUpperCase())}
                   </span>
                 </div>
               </div>

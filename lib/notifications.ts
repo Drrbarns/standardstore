@@ -248,7 +248,7 @@ export async function sendOrderConfirmation(order: any) {
 
 ${emailShippingNotes(shippingNotes)}
 
-<p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">We're getting your order ready. You'll receive updates as it's processed and shipped.</p>
+<p style="color:#374151;font-size:14px;line-height:1.6;margin:16px 0;">We're getting your order ready. You'll receive updates as it's processed and packaged.</p>
 
 ${emailButton('Track Your Order', trackingUrl)}
 
@@ -329,10 +329,10 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     let smsMessage = message;
 
     if (newStatus === 'shipped') {
-        message = `Good news! Your order #${order_number || id} has been shipped and is on its way.`;
+        message = `Good news! Your order #${order_number || id} has been packaged and is ready.`;
         smsMessage = trackingNumber
-            ? `Good news ${name}! Order #${order_number || id} has shipped. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
-            : `Good news ${name}! Order #${order_number || id} has shipped. Track: ${trackingUrl}`;
+            ? `Good news ${name}! Order #${order_number || id} has been packaged. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Good news ${name}! Order #${order_number || id} has been packaged. Track: ${trackingUrl}`;
     } else if (newStatus === 'delivered') {
         message = `Your order #${order_number || id} has been delivered. Enjoy!`;
         smsMessage = `Hi ${name}, your order #${order_number || id} has been delivered. Enjoy your purchase!`;

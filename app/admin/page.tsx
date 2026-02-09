@@ -368,8 +368,8 @@ export default function AdminDashboard() {
                         <td className="py-4 px-4 text-gray-700 whitespace-nowrap">{order.date}</td>
                         <td className="py-4 px-4 font-semibold text-gray-900 whitespace-nowrap">GH₵ {order.total.toFixed(2)}</td>
                         <td className="py-4 px-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap capitalize ${statusColors[order.status] || 'bg-gray-100'}`}>
-                            {order.status}
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusColors[order.status] || 'bg-gray-100'}`}>
+                            {order.status === 'shipped' ? 'Packaged' : order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                           </span>
                         </td>
                       </tr>

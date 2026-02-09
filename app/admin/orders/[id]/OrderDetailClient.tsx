@@ -240,6 +240,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
   };
 
   const statusOptions = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const statusLabel = (s: string) => s === 'shipped' ? 'Packaged' : s.charAt(0).toUpperCase() + s.slice(1);
   const statusColors: any = {
     'pending': 'bg-amber-100 text-amber-700 border-amber-200',
     'processing': 'bg-blue-100 text-blue-700 border-blue-200',
@@ -263,7 +264,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
     { status: 'Order Placed', date: new Date(order.created_at).toLocaleString(), completed: true },
     { status: 'Payment', date: order.payment_status, completed: order.payment_status === 'paid' },
     { status: 'Processing', date: '', completed: ['processing', 'shipped', 'delivered'].includes(order.status) },
-    { status: 'Shipped', date: '', completed: ['shipped', 'delivered'].includes(order.status) },
+    { status: 'Packaged', date: '', completed: ['shipped', 'delivered'].includes(order.status) },
     { status: 'Delivered', date: '', completed: order.status === 'delivered' }
   ];
 
@@ -475,7 +476,7 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                   onClick={() => setShowStatusMenu(!showStatusMenu)}
                   className={`w-full px-4 py-3 rounded-lg border-2 font-semibold text-left flex items-center justify-between ${statusColors[currentStatus] || 'bg-gray-100'}`}
                 >
-                  <span className="capitalize">{currentStatus}</span>
+                  <span>{statusLabel(currentStatus)}</span>
                   <i className="ri-arrow-down-s-line text-xl"></i>
                 </button>
                 {showStatusMenu && (
@@ -486,10 +487,10 @@ export default function OrderDetailClient({ orderId }: OrderDetailClientProps) {
                         onClick={() => {
                           handleUpdateStatus(status);
                         }}
-                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors capitalize ${status === currentStatus ? 'bg-emerald-50 font-semibold' : ''
+                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${status === currentStatus ? 'bg-emerald-50 font-semibold' : ''
                           }`}
                       >
-                        {status}
+                        {statusLabel(status)}
                       </button>
                     ))}
                   </div>

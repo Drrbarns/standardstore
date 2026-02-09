@@ -123,9 +123,9 @@ function OrderTrackingContent() {
       },
       {
         key: 'shipped',
-        title: 'Shipped',
-        description: 'Your order is on the way',
-        date: currentIndex >= 2 ? 'Dispatched' : 'Pending',
+        title: 'Packaged',
+        description: 'Your order has been packaged',
+        date: currentIndex >= 2 ? 'Packaged' : 'Pending',
         icon: 'ri-truck-line',
         status: currentIndex >= 2 ? 'completed' as const : currentIndex === 1 ? 'active' as const : 'pending' as const
       },
@@ -148,7 +148,7 @@ function OrderTrackingContent() {
     const statusMap: Record<string, { label: string; color: string }> = {
       'pending': { label: 'Pending', color: 'bg-amber-100 text-amber-800' },
       'processing': { label: 'Processing', color: 'bg-blue-100 text-blue-800' },
-      'shipped': { label: 'In Transit', color: 'bg-purple-100 text-purple-800' },
+      'shipped': { label: 'Packaged', color: 'bg-purple-100 text-purple-800' },
       'delivered': { label: 'Delivered', color: 'bg-emerald-100 text-emerald-800' },
       'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }
     };
