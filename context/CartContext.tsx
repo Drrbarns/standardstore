@@ -33,6 +33,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
 
+    // Direct cart toggle
+    const handleSetCartOpen = (isOpen: boolean) => {
+        setIsCartOpen(isOpen);
+    };
+
     // Load cart from localStorage on mount, with migration for legacy items
     useEffect(() => {
         const savedCart = localStorage.getItem('cart');
@@ -147,7 +152,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             cartCount,
             subtotal,
             isCartOpen,
-            setIsCartOpen
+            setIsCartOpen: handleSetCartOpen
         }}>
             {children}
         </CartContext.Provider>

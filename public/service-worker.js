@@ -1,5 +1,5 @@
-// Sarah Lawson Imports - Service Worker v2.0
-const CACHE_VERSION = 'sl-v2.0';
+// Sarah Lawson Imports - Service Worker v3.0
+const CACHE_VERSION = 'sl-v3.0';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const IMAGE_CACHE = `images-${CACHE_VERSION}`;
@@ -35,7 +35,7 @@ async function trimCache(cacheName, maxItems) {
 
 // Install: pre-cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing v2.0...');
+  console.log('[SW] Installing v3.0...');
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
@@ -52,7 +52,7 @@ self.addEventListener('install', (event) => {
 
 // Activate: clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating v2.0...');
+  console.log('[SW] Activating v3.0...');
   event.waitUntil(
     caches.keys()
       .then((keys) => {

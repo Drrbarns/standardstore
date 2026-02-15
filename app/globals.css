@@ -546,3 +546,35 @@ img {
 
 .pwa-splash-dots span:nth-child(2) { animation-delay: 0.2s; }
 .pwa-splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ========================================
+   MINI-CART SLIDE-IN ANIMATION
+   ======================================== */
+
+@keyframes miniCartSlideIn {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes miniCartBackdropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.mini-cart-panel {
+  animation: miniCartSlideIn 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.mini-cart-backdrop {
+  animation: miniCartBackdropIn 0.2s ease-out forwards;
+}

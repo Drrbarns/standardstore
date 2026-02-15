@@ -268,6 +268,16 @@ export default function Header() {
                 </Link>
               ))}
               <div className="h-px bg-gray-100 my-2"></div>
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('show-pwa-install-guide'));
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full text-left block px-4 py-3 text-base font-medium text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+              >
+                <i className="ri-download-cloud-2-line mr-2"></i>
+                Download App
+              </button>
               {[
                 { label: 'Track Order', href: '/order-tracking' },
                 { label: 'Wishlist', href: '/wishlist' },

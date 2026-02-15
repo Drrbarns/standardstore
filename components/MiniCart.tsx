@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useCart } from '@/context/CartContext';
 
 interface MiniCartProps {
@@ -11,6 +12,11 @@ interface MiniCartProps {
 
 export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
   const { cart, removeFromCart, updateQuantity, subtotal } = useCart();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Lock body scroll when cart is open
   useEffect(() => {
@@ -24,16 +30,34 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Close on Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
 
-  return (
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, handleKeyDown]);
+
+  if (!mounted || !isOpen) return null;
+
+  return createPortal(
     <>
       <div
-        className="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998] mini-cart-backdrop"
         onClick={onClose}
-      ></div>
+        aria-hidden="true"
+      />
 
-      <div className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col slide-in-right">
+      <div
+        className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-[9999] flex flex-col mini-cart-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Shopping cart"
+      >
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">
             Shopping Cart ({cart.reduce((sum, i) => sum + i.quantity, 0)})
@@ -68,11 +92,17 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
                 {cart.map((item) => (
                   <div key={`${item.id}-${item.variant}`} className="flex space-x-4 bg-gray-50 rounded-lg p-4">
                     <div className="w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-full h-full object-cover object-center"
-                      />
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover object-center"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300">
+                          <i className="ri-image-line text-2xl"></i>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -155,6 +185,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
           </>
         )}
       </div>
-    </>
+    </>,
+    document.body
   );
 }

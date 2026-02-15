@@ -39,43 +39,21 @@ function OrderTrackingContent() {
     setError('');
 
     try {
-      // Only select the fields we need — avoid exposing unnecessary data
-      const { data, error: fetchError } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          status,
-          payment_status,
-          total,
-          email,
-          created_at,
-          shipping_address,
-          metadata,
-          order_items (
-            id,
-            product_name,
-            variant_name,
-            quantity,
-            unit_price,
-            metadata,
-            products (
-              product_images (url)
-            )
-          )
-        `)
-        .eq('order_number', orderNum)
-        .single();
+      // Use secure RPC: returns order only if email matches (RLS blocks direct anon read on orders)
+      const { data, error: fetchError } = await supabase.rpc('get_order_for_tracking', {
+        p_order_number: orderNum.trim(),
+        p_email: emailToVerify.trim(),
+      });
 
-      if (fetchError || !data) {
+      if (fetchError) {
+        console.error('Order tracking error:', fetchError);
         setError('Order not found. Please check your order number and try again.');
         setIsTracking(false);
         return;
       }
 
-      // SECURITY: Always verify email matches — this is mandatory
-      if (data.email?.toLowerCase() !== emailToVerify.toLowerCase()) {
-        setError('The email address does not match this order. Please use the email you placed the order with.');
+      if (!data || typeof data !== 'object') {
+        setError('Order not found. Please check your order number and email and try again.');
         setIsTracking(false);
         return;
       }
