@@ -71,6 +71,8 @@ export default function OrderHistory() {
     switch (status) {
       case 'delivered':
         return 'bg-green-100 text-green-700';
+      case 'dispatched_to_rider':
+        return 'bg-indigo-100 text-indigo-700';
       case 'shipped':
         return 'bg-blue-100 text-blue-700';
       case 'processing':
@@ -153,7 +155,7 @@ export default function OrderHistory() {
                 </div>
                 <div className="w-full sm:w-auto">
                   <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap ${getStatusColor(order.status)}`}>
-                    {order.status === 'shipped' ? 'Packaged' : order.status.replace('_', ' ').replace(/^\w/, (c: string) => c.toUpperCase())}
+                    {order.status === 'shipped' ? 'Packaged' : order.status === 'dispatched_to_rider' ? 'Dispatched To Rider' : order.status.replace(/_/g, ' ').replace(/^\w/, (c: string) => c.toUpperCase())}
                   </span>
                 </div>
               </div>

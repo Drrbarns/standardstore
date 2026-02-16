@@ -341,6 +341,11 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
         smsMessage = trackingNumber
             ? `Good news ${name}! Order #${order_number || id} has been packaged. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
             : `Good news ${name}! Order #${order_number || id} has been packaged. Track: ${trackingUrl}`;
+    } else if (newStatus === 'dispatched_to_rider') {
+        message = `Your order #${order_number || id} has been dispatched to the rider for delivery.`;
+        smsMessage = trackingNumber
+            ? `Hi ${name}, order #${order_number || id} is with the rider for delivery. Tracking: ${trackingNumber}. Track: ${trackingUrl}`
+            : `Hi ${name}, order #${order_number || id} is with the rider for delivery. Track: ${trackingUrl}`;
     } else if (newStatus === 'delivered') {
         message = `Your order #${order_number || id} has been delivered. Enjoy!`;
         smsMessage = `Hi ${name}, your order #${order_number || id} has been delivered. Enjoy your purchase!`;
@@ -356,6 +361,7 @@ export async function sendOrderStatusUpdate(order: any, newStatus: string) {
     const statusConfig: Record<string, { icon: string; color: string; bg: string }> = {
         processing: { icon: '&#9881;', color: '#2563eb', bg: '#eff6ff' },
         shipped: { icon: '&#128666;', color: '#047857', bg: '#ecfdf5' },
+        dispatched_to_rider: { icon: '&#128101;', color: '#4f46e5', bg: '#eef2ff' },
         delivered: { icon: '&#127881;', color: '#16a34a', bg: '#f0fdf4' },
         cancelled: { icon: '&#10060;', color: '#dc2626', bg: '#fef2f2' },
     };

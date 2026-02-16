@@ -1,9 +1,17 @@
 -- ============================================================================
--- COMPLETE DATABASE SCHEMA MIGRATION
--- Generated from live Supabase database on 2026-02-09
+-- COMPLETE E-COMMERCE DATABASE SCHEMA
 -- 
 -- This single migration creates the entire database from scratch.
 -- Run this on a fresh Supabase project to get the full schema.
+--
+-- To duplicate this project for a new store:
+--   1. Create a new Supabase project
+--   2. Run this migration
+--   3. Update .env.local with the new project URL and keys
+--   4. Update branding in site_settings / CMS content
+--   5. Create an admin user and set their role in profiles
+--
+-- No store-specific data or branding is included.
 -- ============================================================================
 
 -- ============================================================================
@@ -19,7 +27,7 @@ CREATE TYPE gender_type AS ENUM ('male', 'female', 'other', 'prefer_not_to_say')
 CREATE TYPE address_type AS ENUM ('shipping', 'billing', 'both');
 CREATE TYPE product_status AS ENUM ('active', 'draft', 'archived');
 CREATE TYPE category_status AS ENUM ('active', 'inactive');
-CREATE TYPE order_status AS ENUM ('pending', 'awaiting_payment', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded');
+CREATE TYPE order_status AS ENUM ('pending', 'awaiting_payment', 'processing', 'shipped', 'dispatched_to_rider', 'delivered', 'cancelled', 'refunded');
 CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'refunded', 'partially_refunded');
 CREATE TYPE discount_type AS ENUM ('percentage', 'fixed_amount', 'free_shipping');
 CREATE TYPE review_status AS ENUM ('pending', 'approved', 'rejected');
@@ -124,14 +132,12 @@ DECLARE
   v_existing_secondary_email TEXT;
   v_existing_secondary_phone TEXT;
 BEGIN
-  -- Try to find existing customer by email first (check both primary and secondary)
   SELECT id, email, phone, secondary_email, secondary_phone 
   INTO v_customer_id, v_existing_email, v_existing_phone, v_existing_secondary_email, v_existing_secondary_phone 
   FROM customers 
   WHERE email = p_email OR secondary_email = p_email 
   LIMIT 1;
   
-  -- If not found by email, try to find by phone number (check both primary and secondary)
   IF v_customer_id IS NULL AND p_phone IS NOT NULL AND p_phone != '' THEN
     SELECT id, email, phone, secondary_email, secondary_phone 
     INTO v_customer_id, v_existing_email, v_existing_phone, v_existing_secondary_email, v_existing_secondary_phone 
@@ -141,12 +147,10 @@ BEGIN
   END IF;
   
   IF v_customer_id IS NULL THEN
-    -- Create new customer only if no match found
     INSERT INTO customers (email, phone, full_name, first_name, last_name, user_id, default_address)
     VALUES (p_email, p_phone, p_full_name, p_first_name, p_last_name, p_user_id, p_address)
     RETURNING id INTO v_customer_id;
   ELSE
-    -- Update existing customer with latest info
     UPDATE customers SET
       secondary_email = CASE 
         WHEN p_email IS NOT NULL 
@@ -204,7 +208,6 @@ AS $$
 DECLARE
   updated_order orders;
 BEGIN
-  -- 1. Update the order to paid
   UPDATE orders
   SET 
     payment_status = 'paid',
@@ -221,18 +224,14 @@ BEGIN
   WHERE order_number = order_ref
   RETURNING * INTO updated_order;
 
-  -- 2. Reduce stock (only if we found the order and haven't reduced yet)
   IF updated_order.id IS NOT NULL THEN
       IF (updated_order.metadata->>'stock_reduced') IS NULL THEN
-          
-          -- Reduce main product stock
           UPDATE products p
           SET quantity = GREATEST(0, p.quantity - oi.quantity)
           FROM order_items oi
           WHERE oi.order_id = updated_order.id
             AND oi.product_id = p.id;
 
-          -- Reduce variant stock (match by product_id + variant_name)
           UPDATE product_variants pv
           SET quantity = GREATEST(0, pv.quantity - oi.quantity)
           FROM order_items oi
@@ -241,14 +240,11 @@ BEGIN
             AND oi.variant_name IS NOT NULL
             AND oi.variant_name = pv.name;
             
-          -- Flag as reduced
           UPDATE orders 
           SET metadata = metadata || '{"stock_reduced": true}'::jsonb
           WHERE id = updated_order.id;
-          
       END IF;
   ELSE
-      -- Fallback search
       SELECT * INTO updated_order FROM orders WHERE order_number = order_ref;
   END IF;
 
@@ -256,7 +252,7 @@ BEGIN
 END;
 $$;
 
--- Reduce stock on order (standalone function)
+-- Reduce stock on order (standalone)
 CREATE OR REPLACE FUNCTION public.reduce_stock_on_order(p_order_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -264,7 +260,6 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
-  -- Reduce main product stock
   UPDATE products p
   SET quantity = GREATEST(p.quantity - oi.quantity, 0),
       updated_at = now()
@@ -272,7 +267,6 @@ BEGIN
   WHERE oi.order_id = p_order_id
     AND oi.product_id = p.id;
 
-  -- Reduce variant stock
   UPDATE product_variants pv
   SET quantity = GREATEST(pv.quantity - oi.quantity, 0),
       updated_at = now()
@@ -319,6 +313,141 @@ BEGIN
     SELECT c.secondary_phone FROM customers c WHERE c.secondary_phone IS NOT NULL AND c.secondary_phone != ''
   ) p
   ORDER BY p.phone;
+END;
+$$;
+
+-- Secure order tracking RPC (allows anon lookup by order_number or tracking_number + email)
+CREATE OR REPLACE FUNCTION public.get_order_for_tracking(p_order_number text, p_email text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  o public.orders;
+  items jsonb;
+  result jsonb;
+  search_term text;
+BEGIN
+  search_term := trim(p_order_number);
+  IF search_term = '' OR p_email IS NULL OR trim(p_email) = '' THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT * INTO o FROM public.orders
+  WHERE order_number = search_term
+  LIMIT 1;
+
+  IF o.id IS NULL THEN
+    SELECT * INTO o FROM public.orders
+    WHERE metadata->>'tracking_number' = search_term
+    LIMIT 1;
+  END IF;
+
+  IF o.id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  IF lower(trim(o.email)) <> lower(trim(p_email)) THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', oi.id,
+      'product_name', oi.product_name,
+      'variant_name', oi.variant_name,
+      'quantity', oi.quantity,
+      'unit_price', oi.unit_price,
+      'metadata', COALESCE(oi.metadata, '{}'::jsonb) || jsonb_build_object(
+        'image',
+        (SELECT pi.url FROM public.product_images pi WHERE pi.product_id = oi.product_id LIMIT 1)
+      )
+    )
+  ) INTO items FROM public.order_items oi WHERE oi.order_id = o.id;
+
+  IF items IS NULL THEN items := '[]'::jsonb; END IF;
+
+  result := jsonb_build_object(
+    'id', o.id,
+    'order_number', o.order_number,
+    'status', o.status,
+    'payment_status', o.payment_status,
+    'total', o.total,
+    'email', o.email,
+    'created_at', o.created_at,
+    'shipping_address', COALESCE(o.shipping_address, '{}'::jsonb),
+    'metadata', COALESCE(o.metadata, '{}'::jsonb),
+    'order_items', items
+  );
+
+  RETURN result;
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_order_for_tracking(text, text) IS 'Secure order tracking: lookup by order_number or tracking_number, verified by email.';
+
+-- Chat conversation persistence (upsert)
+CREATE OR REPLACE FUNCTION public.upsert_chat_conversation(
+  p_session_id text,
+  p_user_id uuid DEFAULT NULL,
+  p_messages jsonb DEFAULT '[]'::jsonb,
+  p_metadata jsonb DEFAULT '{}'::jsonb
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  SELECT id INTO v_id
+  FROM public.chat_conversations
+  WHERE session_id = p_session_id
+  LIMIT 1;
+
+  IF v_id IS NOT NULL THEN
+    UPDATE public.chat_conversations
+    SET messages = p_messages,
+        metadata = p_metadata,
+        user_id = COALESCE(p_user_id, user_id),
+        updated_at = now()
+    WHERE id = v_id;
+    RETURN v_id;
+  ELSE
+    INSERT INTO public.chat_conversations (session_id, user_id, messages, metadata)
+    VALUES (p_session_id, p_user_id, p_messages, p_metadata)
+    RETURNING id INTO v_id;
+    RETURN v_id;
+  END IF;
+END;
+$$;
+
+-- Chat conversation retrieval
+CREATE OR REPLACE FUNCTION public.get_chat_conversation(p_session_id text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  SELECT jsonb_build_object(
+    'id', id,
+    'session_id', session_id,
+    'user_id', user_id,
+    'messages', messages,
+    'metadata', metadata,
+    'created_at', created_at,
+    'updated_at', updated_at
+  ) INTO v_result
+  FROM public.chat_conversations
+  WHERE session_id = p_session_id
+  LIMIT 1;
+
+  RETURN COALESCE(v_result, NULL);
 END;
 $$;
 
@@ -788,6 +917,18 @@ CREATE TABLE public.customers (
   secondary_email text
 );
 
+-- Chat Conversations (AI chat widget persistence)
+CREATE TABLE public.chat_conversations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  session_id text NOT NULL,
+  messages jsonb DEFAULT '[]'::jsonb,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+COMMENT ON TABLE public.chat_conversations IS 'Stores chat widget conversation history for persistence across page loads';
+
 -- ============================================================================
 -- 5. INDEXES
 -- ============================================================================
@@ -849,6 +990,11 @@ CREATE INDEX idx_customers_user_id ON public.customers USING btree (user_id);
 CREATE INDEX idx_customers_secondary_email ON public.customers USING btree (secondary_email);
 CREATE INDEX idx_customers_secondary_phone ON public.customers USING btree (secondary_phone);
 
+-- Chat Conversations
+CREATE INDEX idx_chat_conversations_session ON public.chat_conversations USING btree (session_id);
+CREATE INDEX idx_chat_conversations_user ON public.chat_conversations USING btree (user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_chat_conversations_updated ON public.chat_conversations USING btree (updated_at DESC);
+
 -- ============================================================================
 -- 6. TRIGGERS
 -- ============================================================================
@@ -868,6 +1014,7 @@ CREATE TRIGGER update_support_tickets_updated_at BEFORE UPDATE ON public.support
 CREATE TRIGGER update_return_requests_updated_at BEFORE UPDATE ON public.return_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_store_settings_updated_at BEFORE UPDATE ON public.store_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_pages_updated_at BEFORE UPDATE ON public.pages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_chat_conversations_updated_at BEFORE UPDATE ON public.chat_conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Review rating stats trigger
 CREATE TRIGGER tr_update_product_rating AFTER INSERT OR DELETE OR UPDATE ON public.reviews FOR EACH ROW EXECUTE FUNCTION update_product_rating_stats();
@@ -908,6 +1055,7 @@ ALTER TABLE public.navigation_menus ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.navigation_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_modules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 8. ROW LEVEL SECURITY POLICIES
@@ -1045,8 +1193,23 @@ CREATE POLICY "Staff can view all customers" ON public.customers FOR SELECT USIN
 CREATE POLICY "Staff can manage customers" ON public.customers FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('admin', 'staff')));
 CREATE POLICY "Service role full access to customers" ON public.customers FOR ALL USING (auth.role() = 'service_role');
 
+-- Chat Conversations
+CREATE POLICY "Users can view own conversations" ON public.chat_conversations FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own conversations" ON public.chat_conversations FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+CREATE POLICY "Users can update own conversations" ON public.chat_conversations FOR UPDATE USING (auth.uid() = user_id OR user_id IS NULL);
+
 -- ============================================================================
--- 9. STORAGE BUCKETS
+-- 9. FUNCTION GRANTS (for anon/authenticated access to SECURITY DEFINER RPCs)
+-- ============================================================================
+GRANT EXECUTE ON FUNCTION public.get_order_for_tracking(text, text) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_order_for_tracking(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_chat_conversation(text, uuid, jsonb, jsonb) TO anon;
+GRANT EXECUTE ON FUNCTION public.upsert_chat_conversation(text, uuid, jsonb, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_chat_conversation(text) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_chat_conversation(text) TO authenticated;
+
+-- ============================================================================
+-- 10. STORAGE BUCKETS
 -- ============================================================================
 INSERT INTO storage.buckets (id, name, public) VALUES ('products', 'products', true);
 INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true);
@@ -1055,7 +1218,7 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('media', 'media', true);
 INSERT INTO storage.buckets (id, name, public) VALUES ('reviews', 'reviews', true);
 
 -- ============================================================================
--- 10. STORAGE POLICIES
+-- 11. STORAGE POLICIES
 -- ============================================================================
 
 -- Products bucket

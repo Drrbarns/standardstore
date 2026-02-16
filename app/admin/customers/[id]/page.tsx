@@ -137,8 +137,9 @@ export default function CustomerDetailsPage() {
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
                                             ${order.status === 'completed' || order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
                                                 order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                    order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
-                                            {order.status.replace('_', ' ')}
+                                                    order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                                        order.status === 'dispatched_to_rider' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+                                            {order.status === 'dispatched_to_rider' ? 'Dispatched To Rider' : order.status.replace(/_/g, ' ')}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold text-gray-900">

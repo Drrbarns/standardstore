@@ -21,6 +21,7 @@ const OfflineIndicator = dynamic(() => import('@/components/OfflineIndicator'), 
 const NetworkStatusMonitor = dynamic(() => import('@/components/NetworkStatusMonitor'), { ssr: false });
 const UpdatePrompt = dynamic(() => import('@/components/UpdatePrompt'), { ssr: false });
 const LiveSalesNotification = dynamic(() => import('@/components/LiveSalesNotification'), { ssr: false });
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 
 export default function StoreLayout({
   children,
@@ -52,6 +53,7 @@ export default function StoreLayout({
         <UpdatePrompt />
         <LiveSalesNotification />
         <CookieConsent />
+        <ChatWidget />
       </div>
     </CMSProvider>
   );

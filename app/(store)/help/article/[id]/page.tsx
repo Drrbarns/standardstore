@@ -45,7 +45,8 @@ const articles: any = {
         <li><strong>Order Confirmed:</strong> We've received your order</li>
         <li><strong>Processing:</strong> We're preparing your items</li>
         <li><strong>Packaged:</strong> Your order has been packaged</li>
-        <li><strong>Out for Delivery:</strong> Your order will arrive today</li>
+        <li><strong>Dispatched To Rider:</strong> Your package has been sent to the rider for delivery</li>
+        <li><strong>Out for Delivery:</strong> Your order is on its way</li>
         <li><strong>Delivered:</strong> Your order has been delivered</li>
       </ul>
       
