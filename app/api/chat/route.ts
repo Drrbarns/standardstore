@@ -80,7 +80,22 @@ function checkRateLimit(key: string): boolean {
 // ─── LLM Configuration ──────────────────────────────────────────────────────
 
 const LLM_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const LLM_MODEL = 'openai/gpt-oss-120b';
+const LLM_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, options);
+    if (res.status === 429 && attempt < maxRetries) {
+      const retryAfter = parseFloat(res.headers.get('retry-after') || '3');
+      const waitMs = Math.min((retryAfter || 3) * 1000, 15000);
+      console.warn(`[Chat API] Rate limited, waiting ${waitMs}ms before retry ${attempt + 1}/${maxRetries}`);
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+    return res;
+  }
+  return fetch(url, options);
+}
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────
 
@@ -239,6 +254,11 @@ function buildSystemPrompt(profile: ChatCustomerProfile | null, pagePath?: strin
 
   let prompt = `You are the AI shopping assistant for Sarah Lawson Imports — Ghana's trusted source for premium mannequins, home essentials, electronics, and fashion items. Today is ${now}.
 
+ABSOLUTE RULES — NEVER BREAK THESE:
+- NEVER show your internal reasoning, thinking steps, chain-of-thought, or planning process. NEVER output anything like "Step 1:", "## Step", "Let me think", or similar. Only output the final customer-facing response.
+- NEVER list your available tools or describe how you will use them. Just use them silently and respond with the result.
+- NEVER output markdown headers (##) in your responses. Use plain text with bold (**) for emphasis if needed.
+
 CORE BEHAVIORS:
 - Be warm, helpful, and concise. Use a friendly but professional tone.
 - Always quote prices in GH₵ (Ghana Cedis).
@@ -247,6 +267,7 @@ CORE BEHAVIORS:
 - For order tracking, always ask for both order number AND email if not provided.
 - Never make up information — if unsure, use the appropriate tool to look it up.
 - Keep responses concise (2-4 sentences max for simple questions).
+- When a customer says "find a product", "show me products", "what do you have", or any generic product request, IMMEDIATELY call get_recommendations to show actual products. Do NOT ask what they want or list generic categories — show real products with prices right away. Never make up prices or product ranges.
 
 CRITICAL CONVERSATION RULES — YOU MUST FOLLOW THESE:
 1. NEVER ask for information the customer already provided. Read the full conversation history carefully. If they already gave their email, name, order number, or any detail — USE IT, don't ask again.
@@ -759,7 +780,7 @@ async function handleWithAI(
   let quickReplies: string[] = [];
 
   try {
-    const res = await fetch(LLM_API_URL, {
+    const res = await fetchWithRetry(LLM_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -810,7 +831,7 @@ async function handleWithAI(
         });
       }
 
-      const followUpRes = await fetch(LLM_API_URL, {
+      const followUpRes = await fetchWithRetry(LLM_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
@@ -831,6 +852,15 @@ async function handleWithAI(
     }
 
     let assistantContent = choice?.message?.content?.trim() || '';
+
+    // Strip any leaked reasoning/thinking blocks from the response
+    assistantContent = assistantContent
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/## Step \d+:.*$/gm, '')
+      .replace(/^Step \d+:.*$/gm, '')
+      .replace(/^Let's get started!?\s*/gm, '')
+      .replace(/^#{1,6}\s+/gm, '')
+      .trim();
 
     // If the AI returned empty content, generate a contextual fallback instead of a generic message
     if (!assistantContent) {

@@ -76,6 +76,8 @@ type ChatMessage = {
   returnCard?: ChatReturn;
   couponCard?: ChatCoupon;
   timestamp?: number;
+  isVoice?: boolean;
+  audioUrl?: string;
 };
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -168,6 +170,17 @@ export default function ChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { addToCart, setIsCartOpen } = useCart();
   const pathname = usePathname();
+
+  // Voice chat state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [voiceProcessing, setVoiceProcessing] = useState<'transcribing' | 'speaking' | null>(null);
+  const [currentlyPlayingUrl, setCurrentlyPlayingUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const sendVoiceRef = useRef<(blob: Blob) => void>(() => {});
 
   useEffect(() => {
     setMounted(true);
@@ -283,6 +296,174 @@ export default function ChatWidget() {
     send(text);
   }, [send]);
 
+  // ─── Voice Chat ──────────────────────────────────────────────────────────
+
+  const stopAllAudio = useCallback(() => {
+    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current = null; }
+    setCurrentlyPlayingUrl(null);
+  }, []);
+
+  const togglePlayMessage = useCallback((audioUrl: string) => {
+    if (currentlyPlayingUrl === audioUrl && audioElRef.current) {
+      audioElRef.current.pause();
+      setCurrentlyPlayingUrl(null);
+      audioElRef.current = null;
+      return;
+    }
+    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current = null; }
+    const audio = new Audio(audioUrl);
+    audioElRef.current = audio;
+    audio.onended = () => { setCurrentlyPlayingUrl(null); audioElRef.current = null; };
+    audio.onerror = () => { setCurrentlyPlayingUrl(null); audioElRef.current = null; };
+    audio.play().catch(() => setCurrentlyPlayingUrl(null));
+    setCurrentlyPlayingUrl(audioUrl);
+  }, [currentlyPlayingUrl]);
+
+  const sendVoiceMessage = useCallback(async (audioBlob: Blob) => {
+    setVoiceProcessing('transcribing');
+    setLoading(true);
+    const userMsg: ChatMessage = { role: 'user', content: '🎤 Transcribing voice...', isVoice: true, timestamp: Date.now() };
+    setMessages(prev => [...prev, userMsg]);
+
+    try {
+      const form = new FormData();
+      const ext = audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+      form.append('audio', audioBlob, `recording.${ext}`);
+      const sttRes = await fetch('/api/chat/transcribe', { method: 'POST', body: form });
+      const sttData = await sttRes.json();
+
+      if (!sttData.text?.trim()) {
+        setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: '🎤 (could not understand audio)' }; return u; });
+        setLoading(false);
+        setVoiceProcessing(null);
+        return;
+      }
+
+      const transcribedText = sttData.text.trim();
+      setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: transcribedText }; return u; });
+      setVoiceProcessing(null);
+
+      const chatRes = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          messages: messages.slice(-18).map(m => ({ role: m.role, content: m.content })),
+          newMessage: transcribedText,
+          sessionId: getSessionId(),
+          pagePath: pathname,
+        }),
+      });
+      const chatData = await chatRes.json();
+
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: chatData.message || "Sorry, I couldn't process that.",
+        actions: chatData.actions,
+        quickReplies: chatData.quickReplies,
+        products: chatData.products,
+        orderCard: chatData.orderCard,
+        ticketCard: chatData.ticketCard,
+        returnCard: chatData.returnCard,
+        couponCard: chatData.couponCard,
+        isVoice: true,
+        timestamp: Date.now(),
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+      if (!open) setUnread(u => u + 1);
+
+      if (chatData.message) {
+        setVoiceProcessing('speaking');
+        try {
+          const ttsRes = await fetch('/api/chat/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: chatData.message }),
+          });
+          if (ttsRes.ok) {
+            const ttsBlob = await ttsRes.blob();
+            const aUrl = URL.createObjectURL(ttsBlob);
+            setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], audioUrl: aUrl }; return u; });
+            const audio = new Audio(aUrl);
+            audioElRef.current = audio;
+            audio.onended = () => { setCurrentlyPlayingUrl(null); audioElRef.current = null; };
+            audio.onerror = () => { setCurrentlyPlayingUrl(null); audioElRef.current = null; };
+            try { await audio.play(); setCurrentlyPlayingUrl(aUrl); } catch { /* autoplay blocked */ }
+          }
+        } catch (err) { console.error('TTS error:', err); }
+        setVoiceProcessing(null);
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.', quickReplies: ['Try again'], timestamp: Date.now() }]);
+    } finally {
+      setLoading(false);
+      setVoiceProcessing(null);
+    }
+  }, [messages, open, pathname]);
+
+  sendVoiceRef.current = sendVoiceMessage;
+
+  const stopRecording = useCallback(() => {
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') { mediaRecorderRef.current.stop(); }
+    setIsRecording(false);
+    setRecordingDuration(0);
+  }, []);
+
+  const cancelRecording = useCallback(() => {
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+    if (mediaRecorderRef.current) {
+      const stream = mediaRecorderRef.current.stream;
+      mediaRecorderRef.current.onstop = () => { stream?.getTracks().forEach(t => t.stop()); };
+      if (mediaRecorderRef.current.state !== 'inactive') { mediaRecorderRef.current.stop(); }
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingDuration(0);
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    stopAllAudio();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size > 100) sendVoiceRef.current(blob);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => setRecordingDuration(d => d + 1), 1000);
+    } catch (err: any) {
+      console.error('Mic error:', err);
+    }
+  }, [stopAllAudio]);
+
+  useEffect(() => {
+    if (isRecording && recordingDuration >= 60) stopRecording();
+  }, [isRecording, recordingDuration, stopRecording]);
+
+  useEffect(() => {
+    return () => {
+      if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current = null; }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
+
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackText, setFeedbackText] = useState('');
@@ -354,13 +535,13 @@ export default function ChatWidget() {
       {/* Chat Panel */}
       {open && (
         <div
-          className="fixed inset-0 z-[9998] bg-white flex flex-col overflow-hidden sm:inset-auto sm:bottom-6 sm:right-4 sm:w-[400px] sm:h-[min(75vh,600px)] sm:rounded-2xl sm:shadow-2xl sm:border sm:border-gray-200/80"
+          className="fixed bottom-[5.5rem] right-3 left-3 z-[9998] h-[75vh] max-h-[600px] bg-white flex flex-col overflow-hidden rounded-2xl shadow-2xl border border-gray-200/80 sm:left-auto sm:bottom-6 sm:right-4 sm:w-[400px] sm:h-[min(75vh,600px)]"
           role="dialog"
           aria-label="Chat with us"
           style={{ animation: 'chatSlideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex-shrink-0" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex-shrink-0 rounded-t-2xl">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
                 <i className="ri-robot-2-line text-lg" aria-hidden />
@@ -402,18 +583,37 @@ export default function ChatWidget() {
                 onAddToCart={handleAddToCart}
                 onQuickReply={handleQuickReply}
                 isLast={i === messages.length - 1}
+                onTogglePlay={togglePlayMessage}
+                currentlyPlayingUrl={currentlyPlayingUrl}
               />
             ))}
             {loading && (
               <div className="flex justify-start">
                 <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    <span className="text-xs text-gray-400 ml-1">Thinking...</span>
+                    {voiceProcessing === 'speaking' ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex gap-0.5 items-end h-4">
+                          <span className="w-1 bg-emerald-400 rounded-full animate-voice-bar" style={{ animationDelay: '0ms', height: '40%' }} />
+                          <span className="w-1 bg-emerald-400 rounded-full animate-voice-bar" style={{ animationDelay: '150ms', height: '70%' }} />
+                          <span className="w-1 bg-emerald-400 rounded-full animate-voice-bar" style={{ animationDelay: '300ms', height: '50%' }} />
+                          <span className="w-1 bg-emerald-400 rounded-full animate-voice-bar" style={{ animationDelay: '100ms', height: '80%' }} />
+                          <span className="w-1 bg-emerald-400 rounded-full animate-voice-bar" style={{ animationDelay: '250ms', height: '60%' }} />
+                        </div>
+                        <span className="text-xs text-gray-400 ml-1">Generating voice...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                        <span className="text-xs text-gray-400 ml-1">
+                          {voiceProcessing === 'transcribing' ? 'Transcribing voice...' : 'Thinking...'}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -450,30 +650,57 @@ export default function ChatWidget() {
           )}
 
           {/* Input Area */}
-          <div className="p-3 border-t border-gray-100 bg-white flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-            <form
-              onSubmit={(e) => { e.preventDefault(); send(); }}
-              className="flex gap-2"
-            >
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 text-[16px] sm:text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-                disabled={loading}
-                aria-label="Message"
-              />
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95"
-                aria-label="Send"
-              >
-                <i className="ri-send-plane-fill text-lg" aria-hidden />
-              </button>
-            </form>
+          <div className="p-3 border-t border-gray-100 bg-white flex-shrink-0 rounded-b-2xl">
+            {isRecording ? (
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={cancelRecording} className="shrink-0 w-10 h-10 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-600 flex items-center justify-center transition-all active:scale-95" aria-label="Cancel recording">
+                  <i className="ri-close-line text-lg" aria-hidden />
+                </button>
+                <div className="flex-1 flex items-center justify-center gap-2.5">
+                  <span className="w-3 h-3 bg-red-500 rounded-full animate-recording-pulse flex-shrink-0" />
+                  <span className="text-sm font-medium text-red-600 tabular-nums">
+                    {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                  </span>
+                  <span className="text-xs text-gray-400">Recording...</span>
+                </div>
+                <button type="button" onClick={stopRecording} className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all active:scale-95 shadow-lg shadow-red-500/25" aria-label="Stop and send">
+                  <i className="ri-stop-fill text-lg" aria-hidden />
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type or use voice..."
+                  className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 text-[16px] sm:text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  disabled={loading}
+                  aria-label="Message"
+                />
+                {input.trim() ? (
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95"
+                    aria-label="Send"
+                  >
+                    <i className="ri-send-plane-fill text-lg" aria-hidden />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={loading}
+                    className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95"
+                    aria-label="Voice message"
+                  >
+                    <i className="ri-mic-line text-lg" aria-hidden />
+                  </button>
+                )}
+              </form>
+            )}
             <p className="text-center text-[10px] text-gray-400 mt-1.5">Powered by <a href="https://doctorbarns.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 transition-colors">Doctor Barns Tech</a></p>
           </div>
         </div>
@@ -494,6 +721,20 @@ export default function ChatWidget() {
         }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes recordingPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.35); }
+        }
+        .animate-recording-pulse {
+          animation: recordingPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes voiceBar {
+          0%, 100% { height: 25%; }
+          50% { height: 100%; }
+        }
+        .animate-voice-bar {
+          animation: voiceBar 0.7s ease-in-out infinite;
+        }
       `}</style>
     </>
   );
@@ -506,11 +747,15 @@ function MessageBubble({
   onAddToCart,
   onQuickReply,
   isLast,
+  onTogglePlay,
+  currentlyPlayingUrl,
 }: {
   message: ChatMessage;
   onAddToCart: (p: ChatProduct) => void;
   onQuickReply: (text: string) => void;
   isLast: boolean;
+  onTogglePlay: (url: string) => void;
+  currentlyPlayingUrl: string | null;
 }) {
   const isUser = message.role === 'user';
 
@@ -526,8 +771,30 @@ function MessageBubble({
                 : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100 shadow-sm'
             }`}
           >
+            {isUser && message.isVoice && (
+              <div className="flex items-center gap-1.5 mb-1 opacity-75">
+                <i className="ri-mic-line text-[11px]" />
+                <span className="text-[10px]">Voice message</span>
+              </div>
+            )}
             <MarkdownMessage content={message.content} isUserMessage={isUser} />
           </div>
+        )}
+
+        {/* Voice playback for assistant */}
+        {!isUser && message.audioUrl && (
+          <button
+            type="button"
+            onClick={() => onTogglePlay(message.audioUrl!)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
+              currentlyPlayingUrl === message.audioUrl
+                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+          >
+            <i className={currentlyPlayingUrl === message.audioUrl ? 'ri-pause-circle-fill text-base' : 'ri-play-circle-fill text-base'} />
+            {currentlyPlayingUrl === message.audioUrl ? 'Playing...' : 'Play voice'}
+          </button>
         )}
 
         {/* Product Cards */}
