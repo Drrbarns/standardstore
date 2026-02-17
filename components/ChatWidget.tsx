@@ -334,65 +334,67 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Floating Toggle Button */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-20 right-4 z-[9999] w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 group"
-        aria-label={open ? 'Close chat' : 'Open chat'}
-      >
-        <i className={`text-2xl transition-transform duration-300 ${open ? 'ri-close-line rotate-90' : 'ri-chat-smile-3-line'}`} aria-hidden />
-        {unread > 0 && !open && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
-            {unread}
-          </span>
-        )}
-      </button>
+      {/* Floating Toggle Button — above mobile bottom nav */}
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="fixed bottom-[5.5rem] right-3 z-[9999] w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 sm:bottom-6 sm:right-4"
+          aria-label="Open chat"
+        >
+          <i className="ri-chat-smile-3-line text-2xl" aria-hidden />
+          {unread > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
+              {unread}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Chat Panel */}
       {open && (
         <div
-          className="fixed z-[9998] bg-white shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden bottom-0 right-0 w-full h-full sm:bottom-[7rem] sm:right-4 sm:w-[420px] sm:h-[min(70vh,580px)] sm:rounded-2xl"
+          className="fixed inset-0 z-[9998] bg-white flex flex-col overflow-hidden sm:inset-auto sm:bottom-6 sm:right-4 sm:w-[400px] sm:h-[min(75vh,600px)] sm:rounded-2xl sm:shadow-2xl sm:border sm:border-gray-200/80"
           role="dialog"
           aria-label="Chat with us"
           style={{ animation: 'chatSlideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white flex-shrink-0" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
                 <i className="ri-robot-2-line text-lg" aria-hidden />
               </div>
-              <div>
-                <h3 className="font-semibold text-sm leading-tight">{WIDGET_TITLE}</h3>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm leading-tight truncate">{WIDGET_TITLE}</h3>
                 <p className="text-[11px] text-emerald-100 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-green-300 rounded-full inline-block animate-pulse" />
+                  <span className="w-1.5 h-1.5 bg-green-300 rounded-full inline-block animate-pulse flex-shrink-0" />
                   AI Assistant &middot; Online
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 type="button"
                 onClick={clearChat}
-                className="w-8 h-8 rounded-lg hover:bg-white/15 flex items-center justify-center transition-colors"
+                className="w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center transition-colors"
                 title="Clear chat"
               >
-                <i className="ri-delete-bin-6-line text-sm" aria-hidden />
+                <i className="ri-delete-bin-6-line text-base" aria-hidden />
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-white/15 flex items-center justify-center transition-colors sm:hidden"
+                className="w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center transition-colors"
                 title="Close"
               >
-                <i className="ri-close-line text-lg" aria-hidden />
+                <i className="ri-close-line text-xl" aria-hidden />
               </button>
             </div>
           </div>
 
           {/* Message List */}
-          <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+          <div ref={listRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-gray-50/50">
             {messages.map((m, i) => (
               <MessageBubble
                 key={i}
@@ -420,27 +422,27 @@ export default function ChatWidget() {
 
           {/* Feedback Panel */}
           {showFeedback && (
-            <div className="border-t border-gray-100 p-4 bg-gradient-to-r from-emerald-50 to-blue-50 flex-shrink-0 space-y-3">
+            <div className="border-t border-gray-100 p-3 sm:p-4 bg-gradient-to-r from-emerald-50 to-blue-50 flex-shrink-0 space-y-2.5">
               <p className="text-sm font-semibold text-gray-800">How was your experience?</p>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button key={star} type="button" onClick={() => setFeedbackRating(star)}
-                    className={`text-2xl transition-transform hover:scale-110 ${star <= feedbackRating ? 'text-amber-400' : 'text-gray-300'}`}>
+                    className={`text-3xl sm:text-2xl transition-transform hover:scale-110 active:scale-95 ${star <= feedbackRating ? 'text-amber-400' : 'text-gray-300'}`}>
                     <i className={star <= feedbackRating ? 'ri-star-fill' : 'ri-star-line'} />
                   </button>
                 ))}
               </div>
               {feedbackRating > 0 && (
                 <input value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)}
-                  placeholder="Any feedback? (optional)" className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  placeholder="Any feedback? (optional)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" />
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={submitFeedback} disabled={feedbackRating === 0}
-                  className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+                  className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors active:scale-95">
                   Submit &amp; Clear
                 </button>
                 <button type="button" onClick={performClearChat}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                  className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
                   Skip
                 </button>
               </div>
@@ -448,7 +450,7 @@ export default function ChatWidget() {
           )}
 
           {/* Input Area */}
-          <div className="p-3 border-t border-gray-100 bg-white flex-shrink-0">
+          <div className="p-3 border-t border-gray-100 bg-white flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
             <form
               onSubmit={(e) => { e.preventDefault(); send(); }}
               className="flex gap-2"
@@ -459,20 +461,20 @@ export default function ChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your message..."
-                className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 text-[16px] sm:text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                 disabled={loading}
                 aria-label="Message"
               />
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className="shrink-0 w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95"
+                className="shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95"
                 aria-label="Send"
               >
                 <i className="ri-send-plane-fill text-lg" aria-hidden />
               </button>
             </form>
-            <p className="text-center text-[10px] text-gray-300 mt-1.5">Powered by <a href="https://doctorbarns.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">Doctor Barns Tech</a></p>
+            <p className="text-center text-[10px] text-gray-400 mt-1.5">Powered by <a href="https://doctorbarns.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 transition-colors">Doctor Barns Tech</a></p>
           </div>
         </div>
       )}
@@ -480,7 +482,7 @@ export default function ChatWidget() {
       {/* Global Animation */}
       <style jsx global>{`
         @keyframes chatSlideUp {
-          from { opacity: 0; transform: translateY(20px) scale(0.95); }
+          from { opacity: 0; transform: translateY(20px) scale(0.97); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes chatFadeIn {
@@ -490,6 +492,8 @@ export default function ChatWidget() {
         .chat-msg-animate {
           animation: chatFadeIn 0.25s ease-out forwards;
         }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </>
   );
@@ -512,7 +516,7 @@ function MessageBubble({
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} chat-msg-animate`}>
-      <div className={`max-w-[88%] space-y-2`}>
+      <div className={`max-w-[85%] sm:max-w-[88%] space-y-2`}>
         {/* Text bubble */}
         {message.content && (
           <div
@@ -560,13 +564,13 @@ function MessageBubble({
 
         {/* Quick Replies */}
         {isLast && !isUser && message.quickReplies && message.quickReplies.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
+          <div className="flex gap-1.5 pt-1 overflow-x-auto pb-1 -mb-1 scrollbar-hide flex-nowrap sm:flex-wrap">
             {message.quickReplies.map((qr) => (
               <button
                 key={qr}
                 type="button"
                 onClick={() => onQuickReply(qr)}
-                className="px-3 py-1.5 text-xs font-medium bg-white border border-emerald-200 text-emerald-700 rounded-full hover:bg-emerald-50 hover:border-emerald-300 transition-all active:scale-95 shadow-sm"
+                className="px-3 py-1.5 text-xs font-medium bg-white border border-emerald-200 text-emerald-700 rounded-full hover:bg-emerald-50 hover:border-emerald-300 transition-all active:scale-95 shadow-sm whitespace-nowrap flex-shrink-0"
               >
                 {qr}
               </button>
@@ -583,8 +587,8 @@ function MessageBubble({
 function ProductCard({ product, onAddToCart }: { product: ChatProduct; onAddToCart: (p: ChatProduct) => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 p-3">
-        <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+      <div className="flex items-center gap-2.5 p-2.5 sm:p-3">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
           {product.image ? (
             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
           ) : (
@@ -594,7 +598,7 @@ function ProductCard({ product, onAddToCart }: { product: ChatProduct; onAddToCa
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+          <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{product.name}</p>
           <p className="text-sm font-bold text-emerald-600">GH₵{product.price.toFixed(2)}</p>
           <span className={`text-[10px] font-medium ${product.inStock ? 'text-emerald-600' : 'text-red-500'}`}>
             {product.inStock ? 'In Stock' : 'Out of Stock'}
@@ -605,15 +609,15 @@ function ProductCard({ product, onAddToCart }: { product: ChatProduct; onAddToCa
             <button
               type="button"
               onClick={() => onAddToCart(product)}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all active:scale-95"
+              className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all active:scale-95"
             >
-              <i className="ri-shopping-cart-line mr-1" />
+              <i className="ri-shopping-cart-line mr-0.5 sm:mr-1" />
               Add
             </button>
           )}
           <a
             href={`/products/${product.slug}`}
-            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-all text-center"
+            className="px-2.5 sm:px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-all text-center"
           >
             View
           </a>

@@ -294,7 +294,17 @@ LIMITATIONS (what you CANNOT do directly):
 - Process refunds or payments
 - Change customer account details
 - Access or change delivery addresses on active orders
-For any of these, create a support ticket so a human agent can help.
+
+WHEN YOU CANNOT HELP OR ANSWER A QUESTION:
+If you genuinely cannot answer a question or resolve an issue (whether it's beyond your capabilities, the customer is frustrated, or anything else), you MUST do TWO things:
+1. AUTOMATICALLY create a support ticket using the create_support_ticket tool — don't just offer to, actually do it. Use whatever info the customer already provided (email, name, issue details).
+2. ALWAYS provide the customer with direct contact information for faster help:
+   - Phone: 0546014734 (Main line, Mon-Sat 8am-8pm)
+   - WhatsApp: 0546014734 (instant chat)
+   - David (Manager): 0598922769
+   - Email: info@sarahlawsonimports.com
+   Say something like: "I've created a support ticket for you. For a faster response, you can also reach us directly at **0546014734** (call or WhatsApp) or email **info@sarahlawsonimports.com**."
+Never leave a customer stuck without a path forward.
 
 ${getSiteMapSummary()}`;
 
@@ -697,8 +707,8 @@ async function handleWithoutAI(supabase: any, userText: string, profile: ChatCus
   }
 
   return {
-    message: "I'm not quite sure what you're looking for. I can help with:\n- Finding and buying products\n- Tracking orders\n- Checking coupons\n- Store policies and info\n- Creating support tickets\n\nWhat would you like help with?",
-    quickReplies: ['Find a product', 'Track my order', 'What do you recommend?', 'Contact support'],
+    message: "I'm not quite sure what you're looking for. I can help with:\n- Finding and buying products\n- Tracking orders\n- Checking coupons\n- Store policies and info\n- Creating support tickets\n\nFor immediate assistance, you can also reach us at **0546014734** (call or WhatsApp) or email **info@sarahlawsonimports.com**.",
+    quickReplies: ['Find a product', 'Track my order', 'What do you recommend?', 'Call us'],
   };
 }
 
@@ -833,7 +843,7 @@ async function handleWithAI(
       } else if (couponCard) {
         assistantContent = `Here's the coupon information:`;
       } else {
-        assistantContent = `I apologize, I wasn't able to process that properly. Could you try rephrasing your request? For example, you can ask me to find products, track an order, or create a support ticket.`;
+        assistantContent = `I'm sorry, I wasn't able to process that properly. You can try rephrasing your request, or for immediate help, reach us directly:\n\n- **Phone/WhatsApp:** 0546014734\n- **Email:** info@sarahlawsonimports.com\n- **David (Manager):** 0598922769\n\nOur team is available Mon-Sat, 8am-8pm GMT.`;
       }
     }
 
