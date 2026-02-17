@@ -18,13 +18,14 @@ import {
   type ChatReturn,
   type ChatCustomerProfile,
 } from '@/lib/chat-tools';
+import { searchSiteKnowledge, getSiteMapSummary } from '@/lib/site-knowledge';
 
 // ─── Env ────────────────────────────────────────────────────────────────────
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const openaiKey = process.env.OPENAI_API_KEY;
+const groqKey = process.env.GROQ_API_KEY;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -76,9 +77,14 @@ function checkRateLimit(key: string): boolean {
   return true;
 }
 
-// ─── OpenAI Tool Definitions ────────────────────────────────────────────────
+// ─── LLM Configuration ──────────────────────────────────────────────────────
 
-const OPENAI_TOOLS = [
+const LLM_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const LLM_MODEL = 'openai/gpt-oss-120b';
+
+// ─── Tool Definitions ───────────────────────────────────────────────────────
+
+const LLM_TOOLS = [
   {
     type: 'function' as const,
     function: {
@@ -107,12 +113,12 @@ const OPENAI_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'track_order',
-      description: 'Track an order by order number and email. Use when the customer wants to know the status of a specific order.',
+      description: 'Track an order by order number and email. Use when the customer wants to know the status of a specific order. If the customer provided their email earlier in the conversation, use that — do NOT ask again.',
       parameters: {
         type: 'object',
         properties: {
           order_number: { type: 'string', description: 'Order number (e.g. ORD-xxx) or tracking number' },
-          email: { type: 'string', description: 'Email address associated with the order' },
+          email: { type: 'string', description: 'Email address associated with the order. Use email from conversation context if already provided.' },
         },
         required: ['order_number', 'email'],
       },
@@ -148,13 +154,14 @@ const OPENAI_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'create_support_ticket',
-      description: 'Create a support ticket to escalate an issue to the human support team. Use when the customer has a problem you cannot solve, wants to report an issue, or requests to speak with a human.',
+      description: 'Create a support ticket to escalate an issue to the human support team. Use when the customer has a problem you cannot solve, wants to report an issue, or requests to speak with a human. If the user provided their email in the conversation, pass it in the email parameter.',
       parameters: {
         type: 'object',
         properties: {
           subject: { type: 'string', description: 'Short summary of the issue' },
           description: { type: 'string', description: 'Detailed description of the problem' },
           category: { type: 'string', enum: ['order_issue', 'product_inquiry', 'payment', 'shipping', 'return', 'other'], description: 'Issue category' },
+          email: { type: 'string', description: 'Customer email address (from conversation or profile). Always include if the customer mentioned their email.' },
         },
         required: ['subject', 'description'],
       },
@@ -209,6 +216,20 @@ const OPENAI_TOOLS = [
       parameters: { type: 'object', properties: {} },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_website_info',
+      description: 'Search the website\'s pages and content for information. Use this to answer ANY question about the business, policies, how things work, FAQs, contact info, shipping, returns, payment methods, account management, checkout process, blog content, or anything else about Sarah Lawson Imports. This searches all public pages of the website. ALWAYS use this tool when a customer asks about the business, policies, processes, or anything non-product related.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to search for (e.g. "return policy", "how to track order", "contact phone number", "payment methods", "password reset")' },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 
 // ─── System Prompt Builder ──────────────────────────────────────────────────
@@ -224,9 +245,28 @@ CORE BEHAVIORS:
 - When mentioning products, include the exact name and price.
 - If a product is out of stock, say so and proactively suggest alternatives using get_recommendations.
 - For order tracking, always ask for both order number AND email if not provided.
-- If you can't help with something, offer to create a support ticket.
 - Never make up information — if unsure, use the appropriate tool to look it up.
 - Keep responses concise (2-4 sentences max for simple questions).
+
+CRITICAL CONVERSATION RULES — YOU MUST FOLLOW THESE:
+1. NEVER ask for information the customer already provided. Read the full conversation history carefully. If they already gave their email, name, order number, or any detail — USE IT, don't ask again.
+2. NEVER repeat the same question twice. If you already asked something and the customer responded, move forward with their answer.
+3. NEVER give a generic response like "How can I help?" or "Could you tell me more?" after the customer has clearly stated what they need. Always address their specific request.
+4. If a tool call fails or you can't complete an action, explain SPECIFICALLY what went wrong and what the customer can do instead. Never just reset to a generic greeting.
+5. When the customer provides information (like an email address), ACKNOWLEDGE it specifically (e.g. "Got it, using wepedam@gmail.com...") and proceed with the action immediately.
+6. Maintain context throughout the entire conversation. If the customer said they want a password reset 3 messages ago, you still know that's what they want.
+
+HONESTY ABOUT LIMITATIONS:
+- You CANNOT directly reset passwords, change account settings, or modify orders. Be upfront about this.
+- For password resets: Tell the customer you'll create a support ticket so the team can send them a reset link. Then use the create_support_ticket tool.
+- For account changes: Explain that a human agent needs to handle it and offer to create a ticket.
+- For order modifications: Explain this requires human intervention and offer to escalate.
+- NEVER pretend you can do something you can't. It's better to say "I can't do that directly, but here's what I can do..." than to loop the customer.
+
+WHEN CREATING SUPPORT TICKETS:
+- If the customer has provided their email in the conversation, extract it and pass it to the create_support_ticket tool in the "email" parameter.
+- Do NOT ask for the email again if they already provided it.
+- Always include a clear subject and description based on the full conversation context.
 
 STORE POLICIES (quick reference):
 - Delivery: 1-3 days Accra, 3-7 days rest of Ghana
@@ -234,15 +274,29 @@ STORE POLICIES (quick reference):
 - Payment: Mobile Money (MTN, Vodafone, AirtelTigo), Cash on Delivery (Accra only)
 - Support hours: Mon-Sat, 8 AM - 8 PM GMT
 
-CAPABILITIES:
+CAPABILITIES (what you CAN do):
 - Search and recommend products
 - Check product availability and pricing
 - Track orders by order number + email
 - Show recent orders (logged-in users)
 - Validate coupon/discount codes
-- Create support tickets
+- Create support tickets (for issues that need human help)
 - Initiate returns (logged-in users, delivered orders within 30 days)
-- Answer questions about shipping, returns, payment, and store info`;
+- Answer questions about shipping, returns, payment, and store info
+- Look up ANY information about the website, business, policies, FAQs, and more using the get_website_info tool
+
+IMPORTANT — USING WEBSITE KNOWLEDGE:
+When a customer asks about ANYTHING related to the business (policies, how to do something, contact info, account help, delivery zones, payment methods, returns process, FAQs, etc.), ALWAYS use the get_website_info tool first to get accurate, up-to-date information from the actual website. Do NOT rely solely on the quick reference above — use the tool for detailed answers.
+
+LIMITATIONS (what you CANNOT do directly):
+- Reset passwords or change login credentials
+- Modify or cancel existing orders
+- Process refunds or payments
+- Change customer account details
+- Access or change delivery addresses on active orders
+For any of these, create a support ticket so a human agent can help.
+
+${getSiteMapSummary()}`;
 
   if (profile) {
     prompt += `\n\nCUSTOMER CONTEXT (logged in):
@@ -341,17 +395,67 @@ export async function POST(request: Request) {
       profile = await getCustomerProfile(supabase, userId);
     }
 
+    // Fetch AI memories for context
+    let aiMemories: any[] = [];
+    if (userId || userEmail) {
+      try {
+        const { data: memData } = await supabase.rpc('get_ai_memories', {
+          p_customer_id: userId || null,
+          p_customer_email: userEmail || null,
+        });
+        aiMemories = Array.isArray(memData) ? memData : [];
+      } catch {}
+    }
+
+    // Fetch relevant KB articles from Supabase for AI context
+    let kbContext = '';
+    if (groqKey) {
+      try {
+        const searchTerms = userText.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 3);
+        if (searchTerms.length > 0) {
+          const { data: kbArticles } = await supabase
+            .from('support_knowledge_base')
+            .select('title, content')
+            .eq('is_published', true)
+            .or(searchTerms.map(t => `title.ilike.%${t}%,content.ilike.%${t}%`).join(','))
+            .limit(3);
+          if (kbArticles && kbArticles.length > 0) {
+            kbContext = '\n\nKNOWLEDGE BASE (use these to answer if relevant):\n' +
+              kbArticles.map((a: any) => `- ${a.title}: ${a.content.slice(0, 200)}`).join('\n');
+          }
+        }
+      } catch {}
+    }
+
+    // Also inject instant site knowledge context (fast, in-memory, no DB call)
+    const siteHits = searchSiteKnowledge(userText, 2);
+    if (siteHits.length > 0) {
+      kbContext += '\n\nWEBSITE CONTENT (pre-fetched, use to answer immediately if relevant):\n' +
+        siteHits.map(h => `[${h.title}] (${h.path}): ${h.content.slice(0, 300)}...`).join('\n');
+    }
+
     let result: any;
-    if (openaiKey) {
-      result = await handleWithOpenAI(supabase, messages, userText, openaiKey, userId, userEmail, profile, pagePath);
+    if (groqKey) {
+      result = await handleWithAI(supabase, messages, userText, groqKey, userId, userEmail, profile, pagePath, aiMemories, kbContext);
     } else {
       result = await handleWithoutAI(supabase, userText, profile);
     }
 
     if (sessionId) {
-      persistConversation(supabase, sessionId, userId, messages, userText, result).catch((e) =>
+      persistConversation(supabase, sessionId, userId, userEmail, profile, messages, userText, result, pagePath).catch((e) =>
         console.error('[Chat API] Persistence error:', e)
       );
+    }
+
+    // Update customer insights asynchronously
+    if (userId) {
+      try {
+        await supabase.rpc('upsert_customer_insight', {
+          p_customer_id: userId,
+          p_customer_email: userEmail,
+          p_customer_name: profile?.name || null,
+        });
+      } catch {}
     }
 
     return NextResponse.json(result);
@@ -370,24 +474,119 @@ async function persistConversation(
   supabase: any,
   sessionId: string,
   userId: string | null,
+  userEmail: string | null,
+  profile: ChatCustomerProfile | null,
   previousMessages: ChatMessage[],
   userText: string,
-  result: any
+  result: any,
+  pagePath?: string
 ) {
   const allMessages = [
     ...previousMessages.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: userText },
     { role: 'assistant', content: result.message || '' },
   ];
-
   const last20 = allMessages.slice(-20);
+  const messageCount = allMessages.length;
 
+  // Basic sentiment detection from user text
+  const lower = userText.toLowerCase();
+  const negativeWords = ['angry', 'frustrated', 'terrible', 'horrible', 'worst', 'hate', 'bad', 'awful', 'unacceptable', 'disappointed', 'furious', 'pathetic', 'useless', 'scam', 'refund'];
+  const positiveWords = ['great', 'love', 'amazing', 'excellent', 'wonderful', 'fantastic', 'awesome', 'perfect', 'thank', 'happy', 'good', 'best'];
+  const negCount = negativeWords.filter(w => lower.includes(w)).length;
+  const posCount = positiveWords.filter(w => lower.includes(w)).length;
+  const sentiment = negCount > posCount ? 'negative' : posCount > negCount ? 'positive' : 'neutral';
+
+  // Category detection
+  let category = null;
+  if (/order|track|delivery|ship/i.test(lower)) category = 'order';
+  else if (/product|buy|price|stock|available/i.test(lower)) category = 'product';
+  else if (/return|refund|exchange/i.test(lower)) category = 'return';
+  else if (/payment|pay|money|momo/i.test(lower)) category = 'payment';
+  else if (/coupon|promo|discount/i.test(lower)) category = 'coupon';
+  else if (/support|help|ticket|issue|problem|complaint/i.test(lower)) category = 'support';
+  else if (/shipping|deliver/i.test(lower)) category = 'shipping';
+
+  // Intent detection
+  let intent = null;
+  if (result.products?.length > 0) intent = 'product_search';
+  else if (result.orderCard) intent = 'order_tracking';
+  else if (result.ticketCard) intent = 'support_ticket';
+  else if (result.returnCard) intent = 'return_request';
+  else if (result.couponCard) intent = 'coupon_check';
+  else if (/\b(hi|hello|hey)\b/i.test(lower)) intent = 'greeting';
+  else if (/\b(thank|bye)\b/i.test(lower)) intent = 'closing';
+
+  // Auto-resolution: if AI provided a helpful answer (product, order, coupon info)
+  const isResolved = !!(result.products?.length > 0 || result.orderCard || result.couponCard);
+  const isEscalated = !!(result.ticketCard);
+
+  // Build conversation summary from last exchange
+  const summary = `Customer asked about: ${userText.slice(0, 100)}${userText.length > 100 ? '...' : ''}`;
+
+  // Upsert with enhanced metadata (pass raw objects, not JSON.stringify - Supabase handles serialization)
   await supabase.rpc('upsert_chat_conversation', {
     p_session_id: sessionId,
     p_user_id: userId,
-    p_messages: JSON.stringify(last20),
-    p_metadata: JSON.stringify({ lastActivity: new Date().toISOString() }),
+    p_messages: last20,
+    p_metadata: {
+      lastActivity: new Date().toISOString(),
+      lastUserMessage: userText.slice(0, 200),
+      hadProducts: (result.products?.length || 0) > 0,
+      hadOrderCard: !!result.orderCard,
+      hadTicket: !!result.ticketCard,
+    },
   });
+
+  // Update the enhanced columns directly
+  const { data: existingConv } = await supabase
+    .from('chat_conversations')
+    .select('id, created_at')
+    .eq('session_id', sessionId)
+    .single();
+
+  if (existingConv) {
+    const durationSeconds = Math.floor((Date.now() - new Date(existingConv.created_at).getTime()) / 1000);
+    await supabase.from('chat_conversations').update({
+      sentiment,
+      category,
+      intent,
+      summary,
+      message_count: messageCount,
+      customer_email: userEmail || profile?.email || null,
+      customer_name: profile?.name || null,
+      is_resolved: isResolved,
+      is_escalated: isEscalated,
+      escalated_at: isEscalated ? new Date().toISOString() : null,
+      page_context: pagePath || null,
+      duration_seconds: durationSeconds,
+    }).eq('id', existingConv.id);
+
+    // Auto-save AI memory for negative sentiment
+    if (sentiment === 'negative' && (userId || userEmail)) {
+      await supabase.from('ai_memory').insert({
+        customer_id: userId || null,
+        customer_email: userEmail || null,
+        memory_type: 'issue',
+        content: `Had a negative experience: "${userText.slice(0, 150)}"`,
+        importance: 'high',
+        source_conversation_id: existingConv.id,
+      }).then(() => {}).catch(() => {});
+    }
+
+    // Auto-save preference memories from product searches
+    if (category === 'product' && result.products?.length > 0 && (userId || userEmail)) {
+      const productNames = result.products.slice(0, 3).map((p: any) => p.name).join(', ');
+      await supabase.from('ai_memory').insert({
+        customer_id: userId || null,
+        customer_email: userEmail || null,
+        memory_type: 'preference',
+        content: `Interested in: ${productNames}`,
+        importance: 'normal',
+        source_conversation_id: existingConv.id,
+      }).then(() => {}).catch(() => {});
+    }
+  }
 }
 
 // ─── Rule-Based Fallback ────────────────────────────────────────────────────
@@ -503,9 +702,9 @@ async function handleWithoutAI(supabase: any, userText: string, profile: ChatCus
   };
 }
 
-// ─── OpenAI Handler with Function Calling ───────────────────────────────────
+// ─── AI Handler with Function Calling (Groq) ───────────────────────────────
 
-async function handleWithOpenAI(
+async function handleWithAI(
   supabase: any,
   messages: ChatMessage[],
   userText: string,
@@ -513,13 +712,29 @@ async function handleWithOpenAI(
   userId: string | null,
   userEmail: string | null,
   profile: ChatCustomerProfile | null,
-  pagePath?: string
+  pagePath?: string,
+  aiMemories?: any[],
+  kbContext?: string,
 ) {
-  const systemPrompt = buildSystemPrompt(profile, pagePath);
+  let systemPrompt = buildSystemPrompt(profile, pagePath);
+
+  // Inject AI memories into system prompt
+  if (aiMemories && aiMemories.length > 0) {
+    systemPrompt += '\n\nCUSTOMER MEMORY (things you remember about this customer from past conversations):';
+    for (const mem of aiMemories.slice(0, 10)) {
+      systemPrompt += `\n- [${mem.type}] ${mem.content}`;
+    }
+    systemPrompt += '\nUse these memories to provide personalized service. Reference past interactions naturally.';
+  }
+
+  // Inject KB context
+  if (kbContext) {
+    systemPrompt += kbContext;
+  }
 
   const truncatedHistory = messages.slice(-18);
 
-  const openaiMessages: { role: MessageRole; content: string; tool_call_id?: string; name?: string }[] = [
+  const llmMessages: { role: MessageRole; content: string; tool_call_id?: string; name?: string }[] = [
     { role: 'system', content: systemPrompt },
     ...truncatedHistory.map((m) => ({ role: m.role as MessageRole, content: m.content })),
     { role: 'user', content: userText },
@@ -534,21 +749,22 @@ async function handleWithOpenAI(
   let quickReplies: string[] = [];
 
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(LLM_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: openaiMessages,
-        tools: OPENAI_TOOLS,
+        model: LLM_MODEL,
+        messages: llmMessages,
+        tools: LLM_TOOLS,
         tool_choice: 'auto',
-        max_tokens: 600,
-        temperature: 0.7,
+        max_completion_tokens: 1024,
+        temperature: 0.6,
+        top_p: 1,
       }),
     });
 
     if (!res.ok) {
-      console.error('[Chat API] OpenAI error:', await res.text());
+      console.error('[Chat API] Groq error:', await res.text());
       return await handleWithoutAI(supabase, userText, profile);
     }
 
@@ -556,12 +772,12 @@ async function handleWithOpenAI(
     let choice = data.choices?.[0];
     let toolCalls = choice?.message?.tool_calls;
 
-    // Handle tool calls (support up to 2 rounds of tool calling)
+    // Handle tool calls (support up to 3 rounds of tool calling for multi-step tasks)
     let rounds = 0;
-    while (Array.isArray(toolCalls) && toolCalls.length > 0 && rounds < 2) {
+    while (Array.isArray(toolCalls) && toolCalls.length > 0 && rounds < 3) {
       rounds++;
 
-      openaiMessages.push(choice.message);
+      llmMessages.push(choice.message);
 
       for (const tc of toolCalls) {
         const fnName = tc.function?.name;
@@ -577,23 +793,24 @@ async function handleWithOpenAI(
         if (toolResult.couponCard) couponCard = toolResult.couponCard;
         if (toolResult.quickReplies) quickReplies = toolResult.quickReplies;
 
-        openaiMessages.push({
+        llmMessages.push({
           role: 'tool',
           content: JSON.stringify(toolResult.data),
           tool_call_id: tc.id,
         });
       }
 
-      const followUpRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      const followUpRes = await fetch(LLM_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: openaiMessages,
-          tools: OPENAI_TOOLS,
+          model: LLM_MODEL,
+          messages: llmMessages,
+          tools: LLM_TOOLS,
           tool_choice: 'auto',
-          max_tokens: 600,
-          temperature: 0.7,
+          max_completion_tokens: 1024,
+          temperature: 0.6,
+          top_p: 1,
         }),
       });
 
@@ -603,8 +820,22 @@ async function handleWithOpenAI(
       toolCalls = choice?.message?.tool_calls;
     }
 
-    const assistantContent = choice?.message?.content?.trim() ||
-      "I'm here to help! Could you tell me more about what you're looking for?";
+    let assistantContent = choice?.message?.content?.trim() || '';
+
+    // If the AI returned empty content, generate a contextual fallback instead of a generic message
+    if (!assistantContent) {
+      if (ticketCard) {
+        assistantContent = `I've created a support ticket for you. Our team will follow up shortly.`;
+      } else if (orderCard) {
+        assistantContent = `Here are the details for your order.`;
+      } else if (allProducts.length > 0) {
+        assistantContent = `Here's what I found for you:`;
+      } else if (couponCard) {
+        assistantContent = `Here's the coupon information:`;
+      } else {
+        assistantContent = `I apologize, I wasn't able to process that properly. Could you try rephrasing your request? For example, you can ask me to find products, track an order, or create a support ticket.`;
+      }
+    }
 
     allActions = allProducts.filter((p) => p.inStock).map((p) => ({ type: 'add_to_cart' as const, product: p }));
 
@@ -623,7 +854,7 @@ async function handleWithOpenAI(
       quickReplies,
     };
   } catch (err: any) {
-    console.error('[Chat API] OpenAI handler error:', err);
+    console.error('[Chat API] AI handler error:', err);
     return await handleWithoutAI(supabase, userText, profile);
   }
 }
@@ -705,9 +936,13 @@ async function executeToolCall(
     }
 
     case 'create_support_ticket': {
-      const email = userEmail || profile?.email || '';
+      // Use email from: 1) tool call args (user provided in chat), 2) auth session, 3) profile
+      const email = args.email || userEmail || profile?.email || '';
       if (!email) {
-        return { data: { error: 'I need your email address to create a support ticket. Could you provide it?' }, quickReplies: ['Provide email'] };
+        return {
+          data: { error: 'I need an email address to create a support ticket. Please ask the customer for their email and include it when calling this tool.' },
+          quickReplies: ['I\'ll provide my email'],
+        };
       }
       const ticket = await createSupportTicket(supabase, {
         userId: userId || undefined,
@@ -720,7 +955,7 @@ async function executeToolCall(
         return { data: { error: 'Failed to create ticket. Please try again.' }, quickReplies: ['Try again', 'Contact us directly'] };
       }
       return {
-        data: { ticket_number: ticket.ticket_number, subject: ticket.subject, status: ticket.status },
+        data: { ticket_number: ticket.ticket_number, subject: ticket.subject, status: ticket.status, email_used: email },
         ticketCard: ticket,
         quickReplies: ['Continue shopping', 'Track my order'],
       };
@@ -757,8 +992,11 @@ async function executeToolCall(
 
     case 'get_store_info': {
       const info = getStoreInfo(args.topic);
+      // Also include relevant site knowledge for richer answers
+      const siteResults = searchSiteKnowledge(args.topic || '', 2);
+      const extraInfo = siteResults.map(r => r.content).join('\n\n');
       return {
-        data: { topic: args.topic, info },
+        data: { topic: args.topic, info, additional_details: extraInfo || undefined },
         quickReplies: ['Shipping', 'Returns', 'Payment', 'Contact'].filter((r) => r.toLowerCase() !== args.topic?.toLowerCase()),
       };
     }
@@ -768,6 +1006,25 @@ async function executeToolCall(
         return { data: { error: 'Not logged in' } };
       }
       return { data: { name: profile.name, email: profile.email, total_orders: profile.total_orders } };
+    }
+
+    case 'get_website_info': {
+      const results = searchSiteKnowledge(args.query, 3);
+      if (results.length === 0) {
+        return {
+          data: { message: 'No specific information found for that query. Try rephrasing or ask the customer to visit the Help Center at /help for more details.' },
+          quickReplies: ['Visit Help Center', 'Contact support'],
+        };
+      }
+      return {
+        data: {
+          results: results.map(r => ({
+            title: r.title,
+            page: r.path,
+            content: r.content,
+          })),
+        },
+      };
     }
 
     default:

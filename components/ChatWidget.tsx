@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import type { CartItem } from '@/context/CartContext';
+import MarkdownMessage from '@/components/MarkdownMessage';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -162,10 +163,15 @@ export default function ChatWidget() {
   const [loading, setLoading] = useState(false);
   const [unread, setUnread] = useState(0);
   const [initialized, setInitialized] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { addToCart, setIsCartOpen } = useCart();
   const pathname = usePathname();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Initialize from localStorage
   useEffect(() => {
@@ -277,7 +283,20 @@ export default function ChatWidget() {
     send(text);
   }, [send]);
 
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
   const clearChat = useCallback(() => {
+    if (messages.length > 3 && !feedbackSent) {
+      setShowFeedback(true);
+      return;
+    }
+    performClearChat();
+  }, [messages.length, feedbackSent]);
+
+  const performClearChat = useCallback(() => {
     const initial: ChatMessage[] = [{
       role: 'assistant',
       content: "Chat cleared! How can I help you today?",
@@ -287,7 +306,31 @@ export default function ChatWidget() {
     setMessages(initial);
     saveMessages(initial);
     sessionStorage.removeItem(SESSION_KEY);
+    setShowFeedback(false);
+    setFeedbackRating(0);
+    setFeedbackText('');
+    setFeedbackSent(false);
   }, []);
+
+  const submitFeedback = useCallback(async () => {
+    if (feedbackRating === 0) return;
+    try {
+      await fetch('/api/support/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: feedbackRating,
+          feedback_text: feedbackText || null,
+          feedback_categories: [],
+        }),
+      });
+    } catch {}
+    setFeedbackSent(true);
+    setShowFeedback(false);
+    performClearChat();
+  }, [feedbackRating, feedbackText, performClearChat]);
+
+  if (!mounted) return null;
 
   return (
     <>
@@ -295,7 +338,7 @@ export default function ChatWidget() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-[9990] w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 group"
+        className="fixed bottom-20 right-4 z-[9999] w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 group"
         aria-label={open ? 'Close chat' : 'Open chat'}
       >
         <i className={`text-2xl transition-transform duration-300 ${open ? 'ri-close-line rotate-90' : 'ri-chat-smile-3-line'}`} aria-hidden />
@@ -309,7 +352,7 @@ export default function ChatWidget() {
       {/* Chat Panel */}
       {open && (
         <div
-          className="fixed z-[9989] bg-white shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden bottom-0 right-0 w-full h-full sm:bottom-24 sm:right-6 sm:w-[420px] sm:h-[min(75vh,600px)] sm:rounded-2xl"
+          className="fixed z-[9998] bg-white shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden bottom-0 right-0 w-full h-full sm:bottom-[7rem] sm:right-4 sm:w-[420px] sm:h-[min(70vh,580px)] sm:rounded-2xl"
           role="dialog"
           aria-label="Chat with us"
           style={{ animation: 'chatSlideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards' }}
@@ -375,6 +418,35 @@ export default function ChatWidget() {
             )}
           </div>
 
+          {/* Feedback Panel */}
+          {showFeedback && (
+            <div className="border-t border-gray-100 p-4 bg-gradient-to-r from-emerald-50 to-blue-50 flex-shrink-0 space-y-3">
+              <p className="text-sm font-semibold text-gray-800">How was your experience?</p>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button key={star} type="button" onClick={() => setFeedbackRating(star)}
+                    className={`text-2xl transition-transform hover:scale-110 ${star <= feedbackRating ? 'text-amber-400' : 'text-gray-300'}`}>
+                    <i className={star <= feedbackRating ? 'ri-star-fill' : 'ri-star-line'} />
+                  </button>
+                ))}
+              </div>
+              {feedbackRating > 0 && (
+                <input value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Any feedback? (optional)" className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={submitFeedback} disabled={feedbackRating === 0}
+                  className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors">
+                  Submit &amp; Clear
+                </button>
+                <button type="button" onClick={performClearChat}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">
+                  Skip
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="p-3 border-t border-gray-100 bg-white flex-shrink-0">
             <form
@@ -400,7 +472,7 @@ export default function ChatWidget() {
                 <i className="ri-send-plane-fill text-lg" aria-hidden />
               </button>
             </form>
-            <p className="text-center text-[10px] text-gray-300 mt-1.5">Powered by AI &middot; Responses may be imperfect</p>
+            <p className="text-center text-[10px] text-gray-300 mt-1.5">Powered by <a href="https://doctorbarns.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">Doctor Barns Tech</a></p>
           </div>
         </div>
       )}
@@ -450,7 +522,7 @@ function MessageBubble({
                 : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100 shadow-sm'
             }`}
           >
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            <MarkdownMessage content={message.content} isUserMessage={isUser} />
           </div>
         )}
 

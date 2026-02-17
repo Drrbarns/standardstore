@@ -197,6 +197,11 @@ export default function AdminLayout({
       path: '/admin/coupons'
     },
     {
+      title: 'Support Hub',
+      icon: 'ri-customer-service-2-line',
+      path: '/admin/support',
+    },
+    {
       title: 'Customer Insights',
       icon: 'ri-user-search-line',
       path: '/admin/customer-insights',
