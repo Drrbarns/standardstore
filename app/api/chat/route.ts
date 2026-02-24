@@ -11,12 +11,14 @@ import {
   getRecommendations,
   getStoreInfo,
   getCustomerProfile,
+  createChatOrder,
   type ChatProduct,
   type ChatOrder,
   type ChatCoupon,
   type ChatTicket,
   type ChatReturn,
   type ChatCustomerProfile,
+  type ChatOrderResult,
 } from '@/lib/chat-tools';
 import { searchSiteKnowledge, getSiteMapSummary } from '@/lib/site-knowledge';
 
@@ -44,12 +46,13 @@ interface ChatMessage {
 }
 
 interface ChatAction {
-  type: 'add_to_cart' | 'view_product' | 'view_order' | 'track_order' | 'apply_coupon';
+  type: 'add_to_cart' | 'view_product' | 'view_order' | 'track_order' | 'apply_coupon' | 'payment_link';
   product?: ChatProduct;
   orderId?: string;
   orderNumber?: string;
   couponCode?: string;
   label?: string;
+  paymentUrl?: string;
 }
 
 interface RequestBody {
@@ -57,6 +60,7 @@ interface RequestBody {
   newMessage?: string;
   sessionId?: string;
   pagePath?: string;
+  cartItems?: { id: string; name: string; price: number; quantity: number; slug: string }[];
 }
 
 // ─── Rate Limiting (in-memory) ──────────────────────────────────────────────
@@ -245,6 +249,55 @@ const LLM_TOOLS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_order',
+      description: 'Create an order and initiate payment. Use this when the customer has items in their cart AND has provided all required shipping information (firstName, lastName, email, phone, address, city, region) AND has confirmed they want to proceed with checkout. The cart items are provided automatically from the customer\'s current cart - pass them in the items parameter.',
+      parameters: {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            description: 'Cart items to order. Use the product IDs and quantities from the cart context provided in the conversation.',
+            items: {
+              type: 'object',
+              properties: {
+                productId: { type: 'string', description: 'Product UUID' },
+                quantity: { type: 'number', description: 'Quantity to order' },
+              },
+              required: ['productId', 'quantity'],
+            },
+          },
+          shipping: {
+            type: 'object',
+            description: 'Shipping details collected from the customer',
+            properties: {
+              firstName: { type: 'string' },
+              lastName: { type: 'string' },
+              email: { type: 'string' },
+              phone: { type: 'string' },
+              address: { type: 'string' },
+              city: { type: 'string' },
+              region: { type: 'string' },
+            },
+            required: ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'region'],
+          },
+          delivery_method: {
+            type: 'string',
+            enum: ['standard', 'express', 'pickup'],
+            description: 'Delivery method. Standard: GH₵20, Express: GH₵40, Pickup: Free',
+          },
+          payment_method: {
+            type: 'string',
+            enum: ['moolre', 'cod'],
+            description: 'Payment method. moolre = Mobile Money, cod = Cash on Delivery (Accra only)',
+          },
+        },
+        required: ['items', 'shipping', 'delivery_method', 'payment_method'],
+      },
+    },
+  },
 ];
 
 // ─── System Prompt Builder ──────────────────────────────────────────────────
@@ -305,14 +358,35 @@ CAPABILITIES (what you CAN do):
 - Initiate returns (logged-in users, delivered orders within 30 days)
 - Answer questions about shipping, returns, payment, and store info
 - Look up ANY information about the website, business, policies, FAQs, and more using the get_website_info tool
+- **Place orders and initiate payments** using the create_order tool
 
 IMPORTANT — USING WEBSITE KNOWLEDGE:
 When a customer asks about ANYTHING related to the business (policies, how to do something, contact info, account help, delivery zones, payment methods, returns process, FAQs, etc.), ALWAYS use the get_website_info tool first to get accurate, up-to-date information from the actual website. Do NOT rely solely on the quick reference above — use the tool for detailed answers.
 
+CHECKOUT & ORDER PLACEMENT:
+You can help customers place orders directly in this chat. Here is how:
+1. The customer's current cart contents are provided in the conversation context (if they have items).
+2. When the customer says they want to checkout, buy, or place an order, collect their shipping info step by step:
+   - Full name (first and last)
+   - Email address
+   - Phone number
+   - Delivery address, city, and region
+3. Ask them to choose a delivery method:
+   - **Standard** — GH₵20 (1-3 business days in Accra, 3-7 days outside)
+   - **Express** — GH₵40 (same-day/next-day in Accra)
+   - **Pickup** — Free (collect from our location)
+4. Ask them to choose a payment method:
+   - **Mobile Money** (MTN, Vodafone, AirtelTigo via Moolre) — default
+   - **Cash on Delivery** — Accra only
+5. Summarize the order (items, subtotal, delivery fee, total) and ask the customer to confirm.
+6. Once confirmed, call the create_order tool with the cart items (product IDs and quantities from the cart context), shipping info, delivery method, and payment method.
+7. The tool will return a payment link (for Mobile Money) — present it to the customer. For COD, just confirm the order is placed.
+IMPORTANT: Do NOT ask the customer to list their cart items — you already have them. Just reference what is in their cart and proceed. If the cart is empty, tell them to add products first.
+
 LIMITATIONS (what you CANNOT do directly):
 - Reset passwords or change login credentials
 - Modify or cancel existing orders
-- Process refunds or payments
+- Process refunds
 - Change customer account details
 - Access or change delivery addresses on active orders
 
@@ -400,7 +474,7 @@ async function detectAuth(request: Request): Promise<{ userId: string | null; em
 export async function POST(request: Request) {
   try {
     const body: RequestBody = await request.json();
-    const { messages = [], newMessage, sessionId, pagePath } = body;
+    const { messages = [], newMessage, sessionId, pagePath, cartItems } = body;
 
     const userText = (newMessage || '').trim();
     if (!userText) {
@@ -467,7 +541,7 @@ export async function POST(request: Request) {
 
     let result: any;
     if (groqKey) {
-      result = await handleWithAI(supabase, messages, userText, groqKey, userId, userEmail, profile, pagePath, aiMemories, kbContext);
+      result = await handleWithAI(supabase, messages, userText, groqKey, userId, userEmail, profile, pagePath, aiMemories, kbContext, cartItems);
     } else {
       result = await handleWithoutAI(supabase, userText, profile);
     }
@@ -746,6 +820,7 @@ async function handleWithAI(
   pagePath?: string,
   aiMemories?: any[],
   kbContext?: string,
+  cartItems?: { id: string; name: string; price: number; quantity: number; slug: string }[],
 ) {
   let systemPrompt = buildSystemPrompt(profile, pagePath);
 
@@ -763,6 +838,16 @@ async function handleWithAI(
     systemPrompt += kbContext;
   }
 
+  // Inject cart context so AI knows what the customer wants to buy
+  if (cartItems && cartItems.length > 0) {
+    const cartTotal = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    systemPrompt += `\n\nCUSTOMER'S CURRENT CART (${cartItems.length} item${cartItems.length > 1 ? 's' : ''}, subtotal GH₵${cartTotal.toFixed(2)}):`;
+    for (const item of cartItems) {
+      systemPrompt += `\n- ${item.name} × ${item.quantity} = GH₵${(item.price * item.quantity).toFixed(2)} (ID: ${item.id})`;
+    }
+    systemPrompt += `\nWhen the customer wants to checkout, use these product IDs and quantities for the create_order tool.`;
+  }
+
   const truncatedHistory = messages.slice(-18);
 
   const llmMessages: { role: MessageRole; content: string; tool_call_id?: string; name?: string }[] = [
@@ -778,6 +863,7 @@ async function handleWithAI(
   let returnCard: ChatReturn | undefined;
   let couponCard: ChatCoupon | undefined;
   let quickReplies: string[] = [];
+  let paymentAction: ChatAction | undefined;
 
   try {
     const res = await fetchWithRetry(LLM_API_URL, {
@@ -815,7 +901,7 @@ async function handleWithAI(
         let args: any = {};
         try { args = JSON.parse(tc.function?.arguments || '{}'); } catch {}
 
-        const toolResult = await executeToolCall(supabase, fnName, args, userId, userEmail, profile);
+        const toolResult = await executeToolCall(supabase, fnName, args, userId, userEmail, profile, cartItems);
 
         if (toolResult.products) allProducts.push(...toolResult.products);
         if (toolResult.orderCard) orderCard = toolResult.orderCard;
@@ -823,6 +909,7 @@ async function handleWithAI(
         if (toolResult.returnCard) returnCard = toolResult.returnCard;
         if (toolResult.couponCard) couponCard = toolResult.couponCard;
         if (toolResult.quickReplies) quickReplies = toolResult.quickReplies;
+        if (toolResult.paymentAction) paymentAction = toolResult.paymentAction;
 
         llmMessages.push({
           role: 'tool',
@@ -878,6 +965,7 @@ async function handleWithAI(
     }
 
     allActions = allProducts.filter((p) => p.inStock).map((p) => ({ type: 'add_to_cart' as const, product: p }));
+    if (paymentAction) allActions.push(paymentAction);
 
     if (!quickReplies.length) {
       quickReplies = generateQuickReplies(userText, allProducts, orderCard, ticketCard);
@@ -907,7 +995,8 @@ async function executeToolCall(
   args: any,
   userId: string | null,
   userEmail: string | null,
-  profile: ChatCustomerProfile | null
+  profile: ChatCustomerProfile | null,
+  cartItems?: { id: string; name: string; price: number; quantity: number; slug: string }[],
 ): Promise<{
   data: any;
   products?: ChatProduct[];
@@ -915,6 +1004,7 @@ async function executeToolCall(
   ticketCard?: ChatTicket;
   returnCard?: ChatReturn;
   couponCard?: ChatCoupon;
+  paymentAction?: ChatAction;
   quickReplies?: string[];
 }> {
   switch (fnName) {
@@ -1065,6 +1155,42 @@ async function executeToolCall(
           })),
         },
       };
+    }
+
+    case 'create_order': {
+      const orderResult = await createChatOrder(supabase, {
+        items: args.items || [],
+        shipping: args.shipping || {},
+        deliveryMethod: args.delivery_method || 'standard',
+        paymentMethod: args.payment_method || 'moolre',
+        userId,
+      });
+
+      const result: {
+        data: any;
+        paymentAction?: ChatAction;
+        quickReplies?: string[];
+      } = {
+        data: {
+          success: orderResult.success,
+          orderNumber: orderResult.orderNumber,
+          total: orderResult.total,
+          message: orderResult.message,
+          hasPaymentUrl: !!orderResult.paymentUrl,
+        },
+        quickReplies: orderResult.success ? ['Continue shopping'] : ['Try again', 'Use checkout page'],
+      };
+
+      if (orderResult.paymentUrl) {
+        result.paymentAction = {
+          type: 'payment_link',
+          paymentUrl: orderResult.paymentUrl,
+          orderNumber: orderResult.orderNumber,
+          label: `Pay GH₵${orderResult.total?.toFixed(2)} Now`,
+        };
+      }
+
+      return result;
     }
 
     default:

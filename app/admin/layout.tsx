@@ -21,6 +21,7 @@ export default function AdminLayout({
 
   // Module Filtering State
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function checkAuth() {
@@ -59,6 +60,24 @@ export default function AdminLayout({
         await supabase.auth.signOut();
         router.push('/admin/login?error=unauthorized');
         return;
+      }
+
+      // Fetch role permissions
+      const { data: roleConfig } = await supabase
+        .from('roles')
+        .select('permissions, enabled')
+        .eq('id', profile.role)
+        .single();
+
+      if (roleConfig && !roleConfig.enabled) {
+        document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax; Secure';
+        await supabase.auth.signOut();
+        router.push('/admin/login?error=role_disabled');
+        return;
+      }
+
+      if (roleConfig?.permissions) {
+        setRolePermissions(roleConfig.permissions);
       }
 
       setUser(session.user);
@@ -148,95 +167,130 @@ export default function AdminLayout({
       title: 'Dashboard',
       icon: 'ri-dashboard-line',
       path: '/admin',
-      exact: true
+      exact: true,
+      permissionKey: 'dashboard'
     },
     {
       title: 'Orders',
       icon: 'ri-shopping-bag-line',
       path: '/admin/orders',
-      badge: ''
+      badge: '',
+      permissionKey: 'orders'
     },
     {
       title: 'POS System',
       icon: 'ri-store-3-line',
-      path: '/admin/pos'
+      path: '/admin/pos',
+      permissionKey: 'pos'
     },
     {
       title: 'Products',
       icon: 'ri-box-3-line',
-      path: '/admin/products'
+      path: '/admin/products',
+      permissionKey: 'products'
     },
     {
       title: 'Categories',
       icon: 'ri-folder-line',
-      path: '/admin/categories'
+      path: '/admin/categories',
+      permissionKey: 'categories'
     },
     {
       title: 'Customers',
       icon: 'ri-group-line',
-      path: '/admin/customers'
+      path: '/admin/customers',
+      permissionKey: 'customers'
     },
     {
       title: 'Reviews',
       icon: 'ri-chat-smile-2-line',
-      path: '/admin/reviews'
+      path: '/admin/reviews',
+      permissionKey: 'reviews'
     },
     {
       title: 'Inventory',
       icon: 'ri-stack-line',
-      path: '/admin/inventory'
+      path: '/admin/inventory',
+      permissionKey: 'inventory'
     },
     {
       title: 'Analytics',
       icon: 'ri-bar-chart-line',
-      path: '/admin/analytics'
+      path: '/admin/analytics',
+      permissionKey: 'analytics'
     },
     {
       title: 'Coupons',
       icon: 'ri-coupon-2-line',
-      path: '/admin/coupons'
+      path: '/admin/coupons',
+      permissionKey: 'coupons'
     },
     {
       title: 'Support Hub',
       icon: 'ri-customer-service-2-line',
       path: '/admin/support',
+      permissionKey: 'support'
     },
     {
       title: 'Customer Insights',
       icon: 'ri-user-search-line',
       path: '/admin/customer-insights',
-      moduleId: 'customer-insights'
+      moduleId: 'customer-insights',
+      permissionKey: 'customer_insights'
     },
     {
       title: 'Notifications',
       icon: 'ri-notification-3-line',
       path: '/admin/notifications',
-      moduleId: 'notifications'
+      moduleId: 'notifications',
+      permissionKey: 'notifications'
     },
     {
       title: 'SMS Debugger',
       icon: 'ri-message-2-line',
-      path: '/admin/test-sms'
+      path: '/admin/test-sms',
+      permissionKey: 'sms_debugger'
     },
-
     {
       title: 'Blog',
       icon: 'ri-article-line',
       path: '/admin/blog',
-      moduleId: 'blog'
+      moduleId: 'blog',
+      permissionKey: 'blog'
+    },
+    {
+      title: 'Delivery Hub',
+      icon: 'ri-truck-line',
+      path: '/admin/delivery',
+      permissionKey: 'delivery'
     },
     {
       title: 'Modules',
       icon: 'ri-puzzle-line',
-      path: '/admin/modules'
+      path: '/admin/modules',
+      permissionKey: 'modules'
+    },
+    {
+      title: 'Staff',
+      icon: 'ri-team-line',
+      path: '/admin/staff',
+      permissionKey: 'staff'
+    },
+    {
+      title: 'Roles',
+      icon: 'ri-shield-user-line',
+      path: '/admin/roles',
+      permissionKey: 'roles'
     },
   ];
 
   const visibleMenuItems = menuItems.filter(item => {
-    // @ts-ignore
-    if (!item.moduleId) return true;
-    // @ts-ignore
-    return enabledModules.includes(item.moduleId);
+    if (item.moduleId && !enabledModules.includes(item.moduleId)) return false;
+    if (userRole === 'admin') return true;
+    if (item.permissionKey && Object.keys(rolePermissions).length > 0) {
+      return rolePermissions[item.permissionKey] === true;
+    }
+    return true;
   });
 
   // Special layout for Login Page
@@ -277,7 +331,7 @@ export default function AdminLayout({
                 <Link
                   key={item.path}
                   href={item.path}
-                  onClick={() => window.innerWidth < 1024 && setIsSidebarOpen(false)} // Close on mobile click
+                  onClick={() => window.innerWidth < 1024 && setIsSidebarOpen(false)}
                   className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors cursor-pointer ${isActive
                     ? 'bg-emerald-50 text-emerald-700 font-semibold'
                     : 'text-gray-700 hover:bg-gray-50'

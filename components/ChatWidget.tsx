@@ -57,12 +57,13 @@ type ChatCoupon = {
 };
 
 type ChatAction = {
-  type: 'add_to_cart' | 'view_product' | 'view_order' | 'track_order' | 'apply_coupon';
+  type: 'add_to_cart' | 'view_product' | 'view_order' | 'track_order' | 'apply_coupon' | 'payment_link';
   product?: ChatProduct;
   orderId?: string;
   orderNumber?: string;
   couponCode?: string;
   label?: string;
+  paymentUrl?: string;
 };
 
 type ChatMessage = {
@@ -168,7 +169,7 @@ export default function ChatWidget() {
   const [mounted, setMounted] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { addToCart, setIsCartOpen } = useCart();
+  const { cart, addToCart, clearCart, setIsCartOpen } = useCart();
   const pathname = usePathname();
 
   // Voice chat state
@@ -239,6 +240,10 @@ export default function ChatWidget() {
     setLoading(true);
 
     try {
+      const cartPayload = cart.length > 0
+        ? cart.map(c => ({ id: c.id, name: c.name, price: c.price, quantity: c.quantity, slug: c.slug }))
+        : undefined;
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,10 +253,16 @@ export default function ChatWidget() {
           newMessage: msgText,
           sessionId: getSessionId(),
           pagePath: pathname,
+          cartItems: cartPayload,
         }),
       });
 
       const data = await res.json();
+
+      // Clear cart if a payment link action was returned (order was created)
+      if (data.actions?.some((a: ChatAction) => a.type === 'payment_link')) {
+        clearCart();
+      }
 
       const assistantMsg: ChatMessage = {
         role: 'assistant',
@@ -343,6 +354,10 @@ export default function ChatWidget() {
       setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: transcribedText }; return u; });
       setVoiceProcessing(null);
 
+      const voiceCartPayload = cart.length > 0
+        ? cart.map(c => ({ id: c.id, name: c.name, price: c.price, quantity: c.quantity, slug: c.slug }))
+        : undefined;
+
       const chatRes = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -352,9 +367,14 @@ export default function ChatWidget() {
           newMessage: transcribedText,
           sessionId: getSessionId(),
           pagePath: pathname,
+          cartItems: voiceCartPayload,
         }),
       });
       const chatData = await chatRes.json();
+
+      if (chatData.actions?.some((a: ChatAction) => a.type === 'payment_link')) {
+        clearCart();
+      }
 
       const assistantMsg: ChatMessage = {
         role: 'assistant',
@@ -828,6 +848,20 @@ function MessageBubble({
 
         {/* Coupon Card */}
         {message.couponCard && <CouponCard coupon={message.couponCard} />}
+
+        {/* Payment Link Button */}
+        {message.actions?.filter(a => a.type === 'payment_link').map((a, idx) => (
+          <a
+            key={`pay-${idx}`}
+            href={a.paymentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-md transition-all active:scale-[0.98] text-sm"
+          >
+            <i className="ri-secure-payment-line text-lg" />
+            {a.label || 'Pay Now'}
+          </a>
+        ))}
 
         {/* Quick Replies */}
         {isLast && !isUser && message.quickReplies && message.quickReplies.length > 0 && (

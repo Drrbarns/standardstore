@@ -20,29 +20,21 @@ export async function middleware(request: NextRequest) {
     // Admin route protection
     // ============================================================
     if (pathname.startsWith('/admin')) {
-        // Security headers for admin
         response.headers.set('X-Robots-Tag', 'noindex, nofollow');
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
 
-        // Allow login page without auth
         if (pathname === '/admin/login') {
             return response;
         }
 
-        // Server-side auth check: verify the Supabase session cookie/token
-        // We set 'sb-access-token' explicitly on login, but also check other formats
         let token: string | undefined;
-
-        // 1. Check our explicitly set cookie (most reliable)
         token = request.cookies.get('sb-access-token')?.value;
 
-        // 2. Check Supabase's own cookie format
         if (!token) {
             const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0];
             token = request.cookies.get(`sb-${projectRef}-auth-token`)?.value;
         }
 
-        // 3. Try to find any Supabase auth cookie (newer formats may encode as JSON)
         if (!token) {
             for (const [name, cookie] of request.cookies) {
                 if (name.startsWith('sb-') && (name.endsWith('-auth-token') || name.includes('auth'))) {
@@ -56,7 +48,6 @@ export async function middleware(request: NextRequest) {
                             token = parsed;
                         }
                     } catch {
-                        // Not JSON, use raw value
                         token = cookie.value;
                     }
                     if (token) break;
@@ -65,13 +56,11 @@ export async function middleware(request: NextRequest) {
         }
 
         if (!token) {
-            // No auth token found — redirect to login
             const loginUrl = new URL('/admin/login', request.url);
             loginUrl.searchParams.set('redirect', pathname);
             return NextResponse.redirect(loginUrl);
         }
 
-        // Verify the token is valid and user has admin/staff role
         if (supabaseServiceKey) {
             try {
                 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -87,7 +76,6 @@ export async function middleware(request: NextRequest) {
                     return NextResponse.redirect(loginUrl);
                 }
 
-                // Check role
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('role')
@@ -100,14 +88,23 @@ export async function middleware(request: NextRequest) {
                     return NextResponse.redirect(loginUrl);
                 }
 
-                // Auth passed — set user info in headers for downstream use
+                const { data: roleConfig } = await supabase
+                    .from('roles')
+                    .select('enabled')
+                    .eq('id', profile.role)
+                    .single();
+
+                if (roleConfig && !roleConfig.enabled) {
+                    const loginUrl = new URL('/admin/login', request.url);
+                    loginUrl.searchParams.set('error', 'role_disabled');
+                    return NextResponse.redirect(loginUrl);
+                }
+
                 response.headers.set('x-user-id', user.id);
                 response.headers.set('x-user-role', profile.role);
 
             } catch (err) {
                 console.error('[Middleware] Auth check error:', err);
-                // On error, still allow through (client-side check is backup)
-                // But log it for monitoring
             }
         }
     }

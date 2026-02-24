@@ -1,19 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { getToken, verifying } = useRecaptcha();
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'role_disabled') {
+      setError('Your role has been disabled by the administrator. Contact your Super Admin for access.');
+    } else if (errorParam === 'unauthorized') {
+      setError('You do not have permission to access the admin panel.');
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
