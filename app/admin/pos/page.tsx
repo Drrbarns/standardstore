@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -807,7 +808,7 @@ export default function POSPage() {
     // ─── Render ─────────────────────────────────────────────────────────────
 
     return (
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-90px)] -m-4 lg:-m-6 overflow-hidden bg-gray-100 relative">
+        <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-gray-100 relative">
 
             {/* Barcode Scan Feedback */}
             {scanFeedback && (
@@ -824,6 +825,14 @@ export default function POSPage() {
                 {/* Header */}
                 <div className="bg-white p-3 border-b border-gray-200 shrink-0">
                     <div className="flex items-center gap-3">
+                        <Link
+                            href="/admin"
+                            className="p-2.5 text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                            title="Back to Admin"
+                        >
+                            <i className="ri-arrow-left-line text-lg" />
+                        </Link>
+
                         {/* Search */}
                         <div className="relative flex-1 max-w-md">
                             <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

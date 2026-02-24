@@ -234,13 +234,22 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         }
     }, [isEditMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         try {
             if (!e.target.files || e.target.files.length === 0) return;
 
             setUploading(true);
             const file = e.target.files[0];
-            const fileExt = file.name.split('.').pop();
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+            const isVideo = ['mp4', 'mov', 'webm'].includes(fileExt);
+
+            const maxSize = isVideo ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert(`File too large. Max size: ${isVideo ? '100MB' : '5MB'}`);
+                setUploading(false);
+                return;
+            }
+
             const fileName = `${Math.random()}.${fileExt}`;
             const filePath = `${fileName}`;
 
@@ -254,10 +263,14 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 .from('products')
                 .getPublicUrl(filePath);
 
-            setImages([...images, { url: publicUrl, position: images.length }]);
+            setImages([...images, {
+                url: publicUrl,
+                position: images.length,
+                media_type: isVideo ? 'video' : 'image',
+            }]);
 
         } catch (error: any) {
-            alert('Error uploading image: ' + error.message);
+            alert('Error uploading: ' + error.message);
         } finally {
             setUploading(false);
         }
@@ -338,7 +351,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                         product_id: productId,
                         url: img.url,
                         position: idx,
-                        alt_text: productName
+                        alt_text: productName,
+                        media_type: img.media_type || 'image',
                     }));
                     await supabase.from('product_images').insert(imageInserts);
                 }
@@ -961,34 +975,46 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                     {activeTab === 'images' && (
                         <div className="space-y-6">
                             <div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-1">Product Images</h3>
-                                <p className="text-gray-600">Add up to 10 images. First image will be the primary image.</p>
+                                <h3 className="text-lg font-bold text-gray-900 mb-1">Product Media</h3>
+                                <p className="text-gray-600">Add up to 10 images or videos. First item will be the primary display.</p>
                             </div>
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {images.map((img: any, index: number) => (
-                                    <div key={index} className="relative group">
-                                        <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">
-                                            <img src={img.url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+                                {images.map((img: any, index: number) => {
+                                    const isVideo = img.media_type === 'video' || /\.(mp4|mov|webm)$/i.test(img.url);
+                                    return (
+                                        <div key={index} className="relative group">
+                                            <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden border-2 border-gray-200">
+                                                {isVideo ? (
+                                                    <video src={img.url} className="w-full h-full object-cover" muted preload="metadata" />
+                                                ) : (
+                                                    <img src={img.url} alt={`Product ${index + 1}`} className="w-full h-full object-cover" />
+                                                )}
+                                            </div>
+                                            {index === 0 && (
+                                                <span className="absolute top-2 left-2 bg-emerald-700 text-white px-2 py-1 rounded text-xs font-semibold whitespace-nowrap">
+                                                    Primary
+                                                </span>
+                                            )}
+                                            {isVideo && (
+                                                <span className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
+                                                    <i className="ri-video-line"></i> Video
+                                                </span>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2 rounded-xl">
+                                                <a href={img.url} target="_blank" rel="noreferrer" className="w-9 h-9 flex items-center justify-center bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                                                    <i className={isVideo ? 'ri-play-line' : 'ri-eye-line'}></i>
+                                                </a>
+                                                <button
+                                                    onClick={() => handleRemoveImage(index)}
+                                                    className="w-9 h-9 flex items-center justify-center bg-white text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                                                >
+                                                    <i className="ri-delete-bin-line"></i>
+                                                </button>
+                                            </div>
                                         </div>
-                                        {index === 0 && (
-                                            <span className="absolute top-2 left-2 bg-emerald-700 text-white px-2 py-1 rounded text-xs font-semibold whitespace-nowrap">
-                                                Primary
-                                            </span>
-                                        )}
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2 rounded-xl">
-                                            <a href={img.url} target="_blank" rel="noreferrer" className="w-9 h-9 flex items-center justify-center bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-                                                <i className="ri-eye-line"></i>
-                                            </a>
-                                            <button
-                                                onClick={() => handleRemoveImage(index)}
-                                                className="w-9 h-9 flex items-center justify-center bg-white text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                                            >
-                                                <i className="ri-delete-bin-line"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
 
                                 <label className={`aspect-square border-2 border-dashed border-gray-300 rounded-xl hover:border-emerald-700 hover:bg-emerald-50 transition-colors flex flex-col items-center justify-center space-y-2 text-gray-600 hover:text-emerald-700 cursor-pointer ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                     {uploading ? (
@@ -996,12 +1022,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                                     ) : (
                                         <i className="ri-upload-2-line text-3xl"></i>
                                     )}
-                                    <span className="text-sm font-semibold">{uploading ? 'Uploading...' : 'Upload Image'}</span>
+                                    <span className="text-sm font-semibold">{uploading ? 'Uploading...' : 'Upload Media'}</span>
                                     <input
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/*,video/mp4,video/quicktime,video/webm"
                                         className="hidden"
-                                        onChange={handleImageUpload}
+                                        onChange={handleMediaUpload}
                                         disabled={uploading}
                                     />
                                 </label>
@@ -1009,8 +1035,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
                             <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
                                 <p className="text-sm text-gray-700">
-                                    <strong>Image Guidelines:</strong> Use high-quality images (min 1000x1000px), white or neutral backgrounds work best.
-                                    Supported formats: JPG, PNG, WebP (max 5MB each).
+                                    <strong>Media Guidelines:</strong> Images — high-quality JPG, PNG, WebP (max 5MB). Videos — MP4, MOV, WebM (max 100MB).
+                                    White or neutral backgrounds work best.
                                 </p>
                             </div>
                         </div>

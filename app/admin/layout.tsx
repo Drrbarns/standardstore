@@ -298,6 +298,16 @@ export default function AdminLayout({
     return <>{children}</>;
   }
 
+  // POS gets a full-screen layout with no sidebar or header
+  const isPOS = pathname === '/admin/pos';
+  if (isPOS && isAuthenticated) {
+    return (
+      <div className="h-screen w-screen overflow-hidden bg-gray-100">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
 

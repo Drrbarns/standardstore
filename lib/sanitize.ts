@@ -53,17 +53,28 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
- * Validate Ghana phone number format
+ * Validate Ghana phone number format.
+ * Accepts: 0XXXXXXXXX (10 digits), +233XXXXXXXXX or 233XXXXXXXXX (12 digits)
  */
 export function isValidGhanaPhone(phone: string): boolean {
     if (!phone || typeof phone !== 'string') return false;
     const cleaned = phone.replace(/\D/g, '');
-    // Valid formats: 0XXXXXXXXX (10 digits), 233XXXXXXXXX (12 digits), or 9 digits without prefix
     return (
         (cleaned.length === 10 && cleaned.startsWith('0')) ||
-        (cleaned.length === 12 && cleaned.startsWith('233')) ||
-        cleaned.length === 9
+        (cleaned.length === 12 && cleaned.startsWith('233'))
     );
+}
+
+/**
+ * Normalize a Ghana phone number to 0XXXXXXXXX format.
+ * Handles +233/233 prefix and strips spaces/dashes.
+ */
+export function normalizeGhanaPhone(phone: string): string {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 12 && cleaned.startsWith('233')) {
+        return '0' + cleaned.slice(3);
+    }
+    return cleaned;
 }
 
 /**

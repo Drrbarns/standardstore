@@ -56,7 +56,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 *,
                 categories(name),
                 product_variants(*),
-                product_images(url, position, alt_text)
+                product_images(url, position, alt_text, media_type)
               `);
 
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
@@ -98,6 +98,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         const transformedProduct = {
           ...productData,
+          media: productData.product_images?.sort((a: any, b: any) => a.position - b.position).map((img: any) => ({
+            url: img.url,
+            type: img.media_type || (/\.(mp4|mov|webm)$/i.test(img.url) ? 'video' : 'image'),
+          })) || [],
           images: productData.product_images?.sort((a: any, b: any) => a.position - b.position).map((img: any) => img.url) || [],
           category: productData.categories?.name || 'Shop',
           rating: productData.rating_avg || 0,
@@ -295,15 +299,28 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <div className="grid lg:grid-cols-2 gap-12">
               <div>
                 <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 mb-4 shadow-lg border border-gray-100">
-                  <Image
-                    src={product.images[selectedImage]}
-                    alt={product.name}
-                    fill
-                    className="object-cover object-center"
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    priority
-                    quality={80}
-                  />
+                  {product.media?.[selectedImage]?.type === 'video' ? (
+                    <video
+                      key={product.images[selectedImage]}
+                      src={product.images[selectedImage]}
+                      className="w-full h-full object-cover"
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : (
+                    <Image
+                      src={product.images[selectedImage]}
+                      alt={product.name}
+                      fill
+                      className="object-cover object-center"
+                      sizes="(max-width: 1024px) 100vw, 50vw"
+                      priority
+                      quality={80}
+                    />
+                  )}
                   {discount > 0 && (
                     <span className="absolute top-6 right-6 bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-full">
                       Save {discount}%
@@ -313,23 +330,37 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {product.images.length > 1 && (
                   <div className="grid grid-cols-4 gap-4">
-                    {product.images.map((image: string, index: number) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedImage(index)}
-                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-emerald-700 shadow-md' : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                      >
-                        <Image
-                          src={image}
-                          alt={`${product.name} view ${index + 1}`}
-                          fill
-                          className="object-cover object-center"
-                          sizes="(max-width: 1024px) 25vw, 12vw"
-                          quality={60}
-                        />
-                      </button>
-                    ))}
+                    {product.images.map((image: string, index: number) => {
+                      const isVideo = product.media?.[index]?.type === 'video';
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedImage(index)}
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${selectedImage === index ? 'border-emerald-700 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                        >
+                          {isVideo ? (
+                            <>
+                              <video src={image} className="w-full h-full object-cover" muted preload="metadata" />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center">
+                                  <i className="ri-play-fill text-gray-900 text-sm"></i>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <Image
+                              src={image}
+                              alt={`${product.name} view ${index + 1}`}
+                              fill
+                              className="object-cover object-center"
+                              sizes="(max-width: 1024px) 25vw, 12vw"
+                              quality={60}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

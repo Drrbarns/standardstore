@@ -99,7 +99,17 @@ export default function CheckoutPage() {
     if (!shippingData.lastName) newErrors.lastName = 'Last name is required';
     if (!shippingData.email) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(shippingData.email)) newErrors.email = 'Invalid email';
-    if (!shippingData.phone) newErrors.phone = 'Phone is required';
+    if (!shippingData.phone) {
+      newErrors.phone = 'Phone number is required';
+    } else {
+      const digits = shippingData.phone.replace(/\D/g, '');
+      const valid =
+        (digits.length === 10 && digits.startsWith('0')) ||
+        (digits.length === 12 && digits.startsWith('233'));
+      if (!valid) {
+        newErrors.phone = 'Enter a valid 10-digit Ghana number (e.g. 0551234567)';
+      }
+    }
     if (!shippingData.address) newErrors.address = 'Address is required';
     if (!shippingData.city) newErrors.city = 'City is required';
     if (!shippingData.region) newErrors.region = 'Region is required';
@@ -143,14 +153,20 @@ export default function CheckoutPage() {
       const trackingId = Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
       const trackingNumber = `SLI-${trackingId}`;
 
+      // Normalize phone to 0XXXXXXXXX format
+      const phoneDigits = shippingData.phone.replace(/\D/g, '');
+      const normalizedPhone = phoneDigits.length === 12 && phoneDigits.startsWith('233')
+        ? '0' + phoneDigits.slice(3)
+        : phoneDigits;
+
       // 1. Create Order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert([{
           order_number: orderNumber,
-          user_id: user?.id || null, // Capture user_id if logged in
+          user_id: user?.id || null,
           email: shippingData.email,
-          phone: shippingData.phone,
+          phone: normalizedPhone,
           status: 'pending',
           payment_status: 'pending',
           currency: 'GHS',
@@ -444,12 +460,25 @@ export default function CheckoutPage() {
                       <input
                         type="tel"
                         value={shippingData.phone}
-                        onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9+\- ]/g, '');
+                          if (val.replace(/\D/g, '').length <= 12) {
+                            setShippingData({ ...shippingData, phone: val });
+                          }
+                        }}
+                        maxLength={15}
                         className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
                           }`}
-                        placeholder="+233 XX XXX XXXX"
+                        placeholder="0551234567"
                       />
                       {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
+                      {!errors.phone && shippingData.phone && (() => {
+                        const d = shippingData.phone.replace(/\D/g, '');
+                        const valid = (d.length === 10 && d.startsWith('0')) || (d.length === 12 && d.startsWith('233'));
+                        if (valid) return <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><i className="ri-checkbox-circle-fill"></i> Valid phone number</p>;
+                        if (d.length > 0 && d.length < 10) return <p className="text-xs text-amber-600 mt-1">{10 - d.length} more digit{10 - d.length > 1 ? 's' : ''} needed</p>;
+                        return null;
+                      })()}
                     </div>
 
                     <div>

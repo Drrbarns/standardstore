@@ -2,14 +2,24 @@
 
 import { useState, useEffect } from 'react';
 
+interface MediaItem {
+  url: string;
+  type: 'image' | 'video';
+}
+
 interface ImageZoomProps {
   images: string[];
+  media?: MediaItem[];
   isOpen: boolean;
   onClose: () => void;
   initialIndex?: number;
 }
 
-export default function ImageZoom({ images, isOpen, onClose, initialIndex = 0 }: ImageZoomProps) {
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm)$/i.test(url);
+}
+
+export default function ImageZoom({ images, media, isOpen, onClose, initialIndex = 0 }: ImageZoomProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -32,6 +42,8 @@ export default function ImageZoom({ images, isOpen, onClose, initialIndex = 0 }:
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const currentIsVideo = media?.[currentIndex]?.type === 'video' || isVideoUrl(images[currentIndex]);
 
   const handlePrevious = () => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
@@ -68,6 +80,7 @@ export default function ImageZoom({ images, isOpen, onClose, initialIndex = 0 }:
           </button>
           <span className="text-white text-sm font-medium">
             {currentIndex + 1} / {images.length}
+            {currentIsVideo && <span className="ml-2 text-xs bg-white/20 px-2 py-0.5 rounded">Video</span>}
           </span>
           <div className="w-10"></div>
         </div>
@@ -75,14 +88,28 @@ export default function ImageZoom({ images, isOpen, onClose, initialIndex = 0 }:
 
       <div className="flex-1 relative overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center">
-          <img
-            src={images[currentIndex]}
-            alt={`Product ${currentIndex + 1}`}
-            className="max-w-full max-h-full object-contain transition-transform duration-200"
-            style={{
-              transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`
-            }}
-          />
+          {currentIsVideo ? (
+            <video
+              key={images[currentIndex]}
+              src={images[currentIndex]}
+              className="max-w-full max-h-full"
+              controls
+              autoPlay
+              playsInline
+              style={{
+                transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`
+              }}
+            />
+          ) : (
+            <img
+              src={images[currentIndex]}
+              alt={`Product ${currentIndex + 1}`}
+              className="max-w-full max-h-full object-contain transition-transform duration-200"
+              style={{
+                transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`
+              }}
+            />
+          )}
         </div>
 
         {images.length > 1 && (
@@ -104,43 +131,48 @@ export default function ImageZoom({ images, isOpen, onClose, initialIndex = 0 }:
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-6 z-10">
-        <div className="flex items-center justify-center space-x-4">
-          <button
-            onClick={handleZoomOut}
-            disabled={scale <= 1}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <i className="ri-subtract-line text-xl"></i>
-          </button>
-          <div className="px-4 py-2 bg-white/10 backdrop-blur-sm text-white text-sm font-medium rounded-full whitespace-nowrap">
-            {Math.round(scale * 100)}%
+        {!currentIsVideo && (
+          <div className="flex items-center justify-center space-x-4 mb-4">
+            <button
+              onClick={handleZoomOut}
+              disabled={scale <= 1}
+              className="w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i className="ri-subtract-line text-xl"></i>
+            </button>
+            <div className="px-4 py-2 bg-white/10 backdrop-blur-sm text-white text-sm font-medium rounded-full whitespace-nowrap">
+              {Math.round(scale * 100)}%
+            </div>
+            <button
+              onClick={handleZoomIn}
+              disabled={scale >= 3}
+              className="w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i className="ri-add-line text-xl"></i>
+            </button>
           </div>
-          <button
-            onClick={handleZoomIn}
-            disabled={scale >= 3}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <i className="ri-add-line text-xl"></i>
-          </button>
-        </div>
+        )}
 
         {images.length > 1 && (
-          <div className="flex items-center justify-center space-x-2 mt-4">
-            {images.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  setCurrentIndex(index);
-                  setScale(1);
-                  setPosition({ x: 0, y: 0 });
-                }}
-                className={`h-1.5 rounded-full transition-all ${
-                  index === currentIndex
-                    ? 'w-8 bg-white'
-                    : 'w-1.5 bg-white/40'
-                }`}
-              />
-            ))}
+          <div className="flex items-center justify-center space-x-2">
+            {images.map((_, index) => {
+              const itemIsVideo = media?.[index]?.type === 'video' || isVideoUrl(images[index]);
+              return (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setCurrentIndex(index);
+                    setScale(1);
+                    setPosition({ x: 0, y: 0 });
+                  }}
+                  className={`h-1.5 rounded-full transition-all ${
+                    index === currentIndex
+                      ? itemIsVideo ? 'w-8 bg-blue-400' : 'w-8 bg-white'
+                      : 'w-1.5 bg-white/40'
+                  }`}
+                />
+              );
+            })}
           </div>
         )}
       </div>
