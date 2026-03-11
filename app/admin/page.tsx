@@ -53,25 +53,29 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // 1. Fetch ALL Orders for count & customers
-        const { data: allOrdersData, error: ordersError } = await supabase
-          .from('orders')
-          .select('total, status, payment_status, created_at, email');
+        // 1. Fetch all orders in batches (Supabase default limit is 1000)
+        let allOrdersData: any[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        while (true) {
+          const { data: batch, error: batchError } = await supabase
+            .from('orders')
+            .select('total, status, payment_status, created_at, email')
+            .range(from, from + batchSize - 1);
+          if (batchError) throw batchError;
+          if (!batch || batch.length === 0) break;
+          allOrdersData = allOrdersData.concat(batch);
+          if (batch.length < batchSize) break;
+          from += batchSize;
+        }
 
-        if (ordersError) throw ordersError;
-
-        // Only count PAID orders for revenue & avg order value
-        const paidOrders = allOrdersData?.filter(o => o.payment_status === 'paid') || [];
+        const paidOrders = allOrdersData.filter(o => o.payment_status === 'paid');
         const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-        const totalOrders = allOrdersData?.length || 0;
+        const totalOrders = allOrdersData.length;
         const paidOrderCount = paidOrders.length;
         const avgOrderValue = paidOrderCount > 0 ? totalRevenue / paidOrderCount : 0;
 
-        // 2. Fetch Customers Count (approximation using orders unique emails if we don't have user metrics access)
-        // Since we can't query auth.users directly from client, we'll estimate active customers via orders or just keep it 0 if we can't.
-        // Actually, best to just show "Orders" or "Recent Signups" if we had a public profiles table.
-        // We'll use unique emails from orders as a proxy for "Customers"
-        const uniqueCustomers = new Set(allOrdersData?.map(o => o.email)).size;
+        const uniqueCustomers = new Set(allOrdersData.map(o => o.email)).size;
 
 
         // Process Chart Data (Last 7 Days) - only count PAID orders as revenue

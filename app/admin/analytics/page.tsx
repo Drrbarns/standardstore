@@ -44,15 +44,25 @@ export default function AnalyticsPage() {
       const isoStart = startDate.toISOString();
 
       // Fetch Orders for Revenue & Count - only PAID orders count as revenue
-      const { data: orders, error: orderError } = await supabase
-        .from('orders')
-        .select('id, created_at, total, payment_status')
-        .gte('created_at', isoStart)
-        .eq('payment_status', 'paid') // Only count paid orders as revenue
-        .neq('status', 'cancelled')
-        .order('created_at');
-
-      if (orderError) throw orderError;
+      // Paginate to avoid Supabase 1000-row default limit
+      let orders: any[] = [];
+      let rangeFrom = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data: batch, error: batchErr } = await supabase
+          .from('orders')
+          .select('id, created_at, total, payment_status')
+          .gte('created_at', isoStart)
+          .eq('payment_status', 'paid')
+          .neq('status', 'cancelled')
+          .order('created_at')
+          .range(rangeFrom, rangeFrom + pageSize - 1);
+        if (batchErr) throw batchErr;
+        if (!batch || batch.length === 0) break;
+        orders = orders.concat(batch);
+        if (batch.length < pageSize) break;
+        rangeFrom += pageSize;
+      }
 
       // Fetch Order Items for Products & Categories
       // This might be heavy for large DBs, but fine for typical small shop admin
@@ -70,21 +80,26 @@ export default function AnalyticsPage() {
       let validItems: any[] = [];
       if (orders && orders.length > 0) {
         const orderIds = orders.map(o => o.id);
-        const { data: fetchedItems, error: itemFetchError } = await supabase
-          .from('order_items')
-          .select(`
-            quantity, 
-            unit_price, 
-            total_price,
-            product_id,
-            products!inner(name, category_id, categories(name))
-          `)
-          .in('order_id', orderIds);
+        // Batch order IDs in chunks of 200 to avoid URL length limits with .in()
+        for (let i = 0; i < orderIds.length; i += 200) {
+          const chunk = orderIds.slice(i, i + 200);
+          const { data: fetchedItems, error: itemFetchError } = await supabase
+            .from('order_items')
+            .select(`
+              quantity, 
+              unit_price, 
+              total_price,
+              product_id,
+              products!inner(name, category_id, categories(name))
+            `)
+            .in('order_id', chunk)
+            .limit(5000);
 
-        if (itemFetchError) {
-          console.error('Error fetching order items:', itemFetchError);
+          if (itemFetchError) {
+            console.error('Error fetching order items:', itemFetchError);
+          }
+          if (fetchedItems) validItems = validItems.concat(fetchedItems);
         }
-        if (fetchedItems) validItems = fetchedItems;
       }
 
       // Process Metrics
