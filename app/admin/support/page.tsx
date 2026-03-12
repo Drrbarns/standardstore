@@ -18,7 +18,7 @@ export default function SupportDashboard() {
     setLoading(true);
     const [statsRes, convosRes, ticketsRes] = await Promise.all([
       supabase.rpc('get_support_dashboard_stats'),
-      supabase.from('chat_conversations').select('*').order('updated_at', { ascending: false }).limit(8),
+      supabase.from('chat_conversations').select('*').order('updated_at', { ascending: false }).limit(15),
       supabase.from('support_tickets').select('*').in('status', ['open', 'in_progress', 'waiting_customer']).order('created_at', { ascending: false }).limit(10),
     ]);
     setStats(statsRes.data);
@@ -143,14 +143,14 @@ export default function SupportDashboard() {
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent AI Conversations */}
-        <div className="bg-white rounded-xl border border-gray-100">
+        <div className="bg-white rounded-xl border border-gray-100 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
               <i className="ri-chat-3-line text-blue-500" /> Recent Conversations
             </h2>
             <Link href="/admin/support/conversations" className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">View all →</Link>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50 overflow-y-auto max-h-[500px]">
             {recentConversations.length === 0 ? (
               <div className="p-8 text-center text-gray-400">
                 <i className="ri-chat-off-line text-4xl mb-2 block" />
@@ -174,6 +174,9 @@ export default function SupportDashboard() {
               </Link>
             ))}
           </div>
+          <Link href="/admin/support/conversations" className="flex items-center justify-center gap-2 p-3 border-t border-gray-100 text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors">
+            <i className="ri-history-line" /> View All {stats?.conversations?.total || 271} Conversations
+          </Link>
         </div>
 
         {/* Open Tickets */}
