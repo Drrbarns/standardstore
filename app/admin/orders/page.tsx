@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import ProductSalesStats from './ProductSalesStats';
+
+const ORDERS_STATE_KEY = 'admin_orders_state';
 
 interface Order {
   id: string;
@@ -34,15 +36,24 @@ interface OrderStats {
   status: string;
 }
 
+function getSavedState() {
+  try {
+    const raw = sessionStorage.getItem(ORDERS_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 export default function AdminOrdersPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const saved = useRef(getSavedState());
+
+  const [searchQuery, setSearchQuery] = useState(saved.current?.searchQuery || '');
+  const [statusFilter, setStatusFilter] = useState(saved.current?.statusFilter || 'all');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState(saved.current?.sortBy || 'date');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>('confirmed');
+  const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>(saved.current?.orderViewTab || 'confirmed');
   const [sendingPaymentLink, setSendingPaymentLink] = useState<string | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats[]>([
     { label: 'All Orders', count: 0, status: 'all' },
@@ -56,8 +67,22 @@ export default function AdminOrdersPage() {
   const [abandonedCount, setAbandonedCount] = useState(0);
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [showProductStats, setShowProductStats] = useState(false);
-  const [productFilter, setProductFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState(saved.current?.productFilter || 'all');
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
+
+  const saveState = useCallback(() => {
+    try {
+      const scrollEl = document.querySelector('[data-orders-scroll]');
+      sessionStorage.setItem(ORDERS_STATE_KEY, JSON.stringify({
+        searchQuery,
+        statusFilter,
+        sortBy,
+        orderViewTab,
+        productFilter,
+        scrollTop: scrollEl?.scrollTop ?? window.scrollY,
+      }));
+    } catch {}
+  }, [searchQuery, statusFilter, sortBy, orderViewTab, productFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -126,6 +151,15 @@ export default function AdminOrdersPage() {
       console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
+
+      // Restore scroll position after render
+      requestAnimationFrame(() => {
+        const scrollY = saved.current?.scrollTop;
+        if (scrollY != null && scrollY > 0) {
+          window.scrollTo(0, scrollY);
+          saved.current = null;
+        }
+      });
     }
   };
 
@@ -572,7 +606,7 @@ export default function AdminOrdersPage() {
                       />
                     </td>
                     <td className="py-4 px-4">
-                      <Link href={`/admin/orders/${order.id}`} className="text-emerald-700 hover:text-emerald-800 font-semibold whitespace-nowrap cursor-pointer">
+                      <Link href={`/admin/orders/${order.id}`} onClick={saveState} className="text-emerald-700 hover:text-emerald-800 font-semibold whitespace-nowrap cursor-pointer">
                         {order.order_number || order.id.substring(0, 8)}
                       </Link>
                     </td>
@@ -609,6 +643,7 @@ export default function AdminOrdersPage() {
                       <div className="flex items-center space-x-2">
                         <Link
                           href={`/admin/orders/${order.id}`}
+                          onClick={saveState}
                           className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                           title="View Order"
                         >
