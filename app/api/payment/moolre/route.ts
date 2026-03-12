@@ -50,12 +50,46 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
         }
 
-        // Don't allow payment for already-paid orders
         if (order.payment_status === 'paid') {
             return NextResponse.json({ success: false, message: 'Order is already paid' }, { status: 400 });
         }
 
-        // Use the database amount, NOT the client-provided amount
+        // Stock validation: ensure all items are still available before accepting payment
+        const { data: orderItems, error: itemsError } = await supabaseAdmin
+            .from('order_items')
+            .select('quantity, product_id, products(name, quantity, is_active)')
+            .eq('order_id', order.id);
+
+        if (itemsError) {
+            console.error('[Payment] Failed to check order items:', itemsError);
+            return NextResponse.json({ success: false, message: 'Could not verify product availability' }, { status: 500 });
+        }
+
+        if (orderItems && orderItems.length > 0) {
+            const outOfStock: string[] = [];
+            for (const item of orderItems) {
+                const product = (item as any).products;
+                if (!product) continue;
+                if (!product.is_active) {
+                    outOfStock.push(`${product.name} is no longer available`);
+                } else if (product.quantity < item.quantity) {
+                    outOfStock.push(
+                        product.quantity === 0
+                            ? `${product.name} is out of stock`
+                            : `${product.name} — only ${product.quantity} left (you ordered ${item.quantity})`
+                    );
+                }
+            }
+            if (outOfStock.length > 0) {
+                console.log('[Payment] Blocked — out of stock items:', outOfStock);
+                return NextResponse.json({
+                    success: false,
+                    message: `Some items are out of stock: ${outOfStock.join('; ')}`,
+                    outOfStock,
+                }, { status: 409 });
+            }
+        }
+
         const amount = Number(order.total);
         if (!amount || amount <= 0) {
             return NextResponse.json({ success: false, message: 'Invalid order amount' }, { status: 400 });

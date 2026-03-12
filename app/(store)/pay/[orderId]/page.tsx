@@ -6,6 +6,12 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
+interface StockIssue {
+  productName: string;
+  requested: number;
+  available: number;
+}
+
 export default function PaymentPage() {
   usePageTitle('Complete Payment');
   const params = useParams();
@@ -16,11 +22,12 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
+  const [checkingStock, setCheckingStock] = useState(false);
 
   useEffect(() => {
     async function fetchOrder() {
       try {
-        // Fetch order by ID (UUID) or order_number
         let query = supabase
           .from('orders')
           .select('*')
@@ -37,11 +44,40 @@ export default function PaymentPage() {
 
         setOrder(data);
 
-        // If already paid, redirect to success page
         if (data.payment_status === 'paid') {
           router.push(`/order-success?order=${data.order_number}`);
           return;
         }
+
+        // Check stock availability for all items in this order
+        setCheckingStock(true);
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('quantity, product_id, products(name, quantity, is_active)')
+          .eq('order_id', data.id);
+
+        if (orderItems && orderItems.length > 0) {
+          const issues: StockIssue[] = [];
+          for (const item of orderItems) {
+            const product = (item as any).products;
+            if (!product) continue;
+            if (!product.is_active) {
+              issues.push({
+                productName: product.name,
+                requested: item.quantity,
+                available: 0,
+              });
+            } else if (product.quantity < item.quantity) {
+              issues.push({
+                productName: product.name,
+                requested: item.quantity,
+                available: product.quantity,
+              });
+            }
+          }
+          setStockIssues(issues);
+        }
+        setCheckingStock(false);
 
       } catch (err) {
         console.error('Error fetching order:', err);
@@ -57,7 +93,7 @@ export default function PaymentPage() {
   }, [orderId, router]);
 
   const handlePayNow = async () => {
-    if (!order) return;
+    if (!order || stockIssues.length > 0) return;
     
     setProcessing(true);
     setError(null);
@@ -79,7 +115,6 @@ export default function PaymentPage() {
         throw new Error(paymentResult.message || 'Payment initialization failed');
       }
 
-      // Redirect to Moolre payment page
       window.location.href = paymentResult.url;
 
     } catch (err: any) {
@@ -195,6 +230,52 @@ export default function PaymentPage() {
           </div>
         )}
 
+        {/* Stock Issues Warning */}
+        {stockIssues.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
+            <div className="flex items-start space-x-3 mb-3">
+              <i className="ri-error-warning-fill text-xl text-red-600 mt-0.5"></i>
+              <div>
+                <p className="text-sm font-semibold text-red-800">Some items are no longer available</p>
+                <p className="text-sm text-red-700 mt-1">
+                  We&apos;re sorry, but the following item{stockIssues.length > 1 ? 's have' : ' has'} gone out of stock since you placed your order:
+                </p>
+              </div>
+            </div>
+            <ul className="ml-8 space-y-2 mt-3">
+              {stockIssues.map((issue, idx) => (
+                <li key={idx} className="text-sm text-red-800 flex items-start gap-2">
+                  <i className="ri-close-circle-fill text-red-500 mt-0.5 shrink-0"></i>
+                  <span>
+                    <strong>{issue.productName}</strong>
+                    {issue.available === 0 
+                      ? ' — Out of stock' 
+                      : ` — Only ${issue.available} left (you ordered ${issue.requested})`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 ml-8">
+              <Link 
+                href="/"
+                className="inline-flex items-center text-sm font-semibold text-red-700 hover:text-red-900 transition-colors"
+              >
+                <i className="ri-arrow-left-line mr-1"></i>
+                Browse available products
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {checkingStock && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-600">Checking product availability...</p>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-red-700">{error}</p>
@@ -204,8 +285,12 @@ export default function PaymentPage() {
         {/* Pay Button */}
         <button
           onClick={handlePayNow}
-          disabled={processing}
-          className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-4 rounded-xl font-semibold text-lg transition-colors disabled:opacity-70 flex items-center justify-center cursor-pointer"
+          disabled={processing || stockIssues.length > 0 || checkingStock}
+          className={`w-full py-4 rounded-xl font-semibold text-lg transition-colors flex items-center justify-center ${
+            stockIssues.length > 0
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-emerald-700 hover:bg-emerald-800 text-white disabled:opacity-70 cursor-pointer'
+          }`}
         >
           {processing ? (
             <>
@@ -214,6 +299,11 @@ export default function PaymentPage() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
               Processing...
+            </>
+          ) : stockIssues.length > 0 ? (
+            <>
+              <i className="ri-close-circle-line mr-2"></i>
+              Payment Unavailable — Items Out of Stock
             </>
           ) : (
             <>
