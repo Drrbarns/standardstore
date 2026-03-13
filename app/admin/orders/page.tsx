@@ -92,32 +92,42 @@ export default function AdminOrdersPage() {
     try {
       setLoading(true);
 
-      // Fetch orders with related data
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          email,
-          total,
-          status,
-          payment_status,
-          payment_method,
-          shipping_method,
-          created_at,
-          phone,
-          shipping_address,
-          metadata,
-          order_items (
-            quantity,
-            product_name
-          )
-        `)
-        .order('created_at', { ascending: false });
+      // Fetch all orders in batches to avoid Supabase 1000-row default limit
+      let ordersData: any[] = [];
+      const batchSize = 1000;
+      let from = 0;
+      while (true) {
+        const { data: batch, error } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            order_number,
+            email,
+            total,
+            status,
+            payment_status,
+            payment_method,
+            shipping_method,
+            created_at,
+            phone,
+            shipping_address,
+            metadata,
+            order_items (
+              quantity,
+              product_name
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        if (!batch || batch.length === 0) break;
+        ordersData = ordersData.concat(batch);
+        if (batch.length < batchSize) break;
+        from += batchSize;
+      }
 
-      setOrders(ordersData || []);
+      setOrders(ordersData);
 
       // Extract unique product names for filter
       const productNames = new Set<string>();
@@ -345,17 +355,20 @@ export default function AdminOrdersPage() {
   };
 
   const filteredOrders = orders.filter(order => {
+    const q = searchQuery.toLowerCase().trim();
     const customerName = getCustomerName(order).toLowerCase();
     const customerEmail = getCustomerEmail(order).toLowerCase();
     const orderId = (order.order_number || order.id).toLowerCase();
+    const phone = (order.phone || '').toLowerCase();
 
-    // First filter by view tab (confirmed vs abandoned)
     const isConfirmed = order.payment_status === 'paid';
     const matchesViewTab = orderViewTab === 'confirmed' ? isConfirmed : !isConfirmed;
 
-    const matchesSearch = orderId.includes(searchQuery.toLowerCase()) ||
-      customerName.includes(searchQuery.toLowerCase()) ||
-      customerEmail.includes(searchQuery.toLowerCase());
+    const matchesSearch = !q ||
+      orderId.includes(q) ||
+      customerName.includes(q) ||
+      customerEmail.includes(q) ||
+      phone.includes(q);
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     const matchesProduct = productFilter === 'all' || 
       order.order_items?.some((item: any) => item.product_name === productFilter);
