@@ -83,7 +83,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     const [selectedSizes, setSelectedSizes] = useState<string[]>(() => {
         const sizes = new Set<string>();
         existingVariants.forEach((v: any) => {
-            if (v.size) sizes.add(v.size);
+            if (v.size && v.color) {
+                sizes.add(v.size);
+            } else if (v.size && !v.color) {
+                const isSizePreset = sizePresets.includes(v.size);
+                if (isSizePreset) sizes.add(v.size);
+            }
         });
         return Array.from(sizes);
     });
@@ -91,6 +96,36 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     const [customColorName, setCustomColorName] = useState('');
     const [customColorHex, setCustomColorHex] = useState('#888888');
     const [customSize, setCustomSize] = useState('');
+
+    // --- Custom (Bulk) Variants: free-form labels without color/size ---
+    const [customVariants, setCustomVariants] = useState<{ label: string; price: string; stock: string; sku: string }[]>(() => {
+        // Parse existing variants that have no color AND whose name doesn't match a standard size
+        const allSizeNames = new Set([...sizePresets]);
+        return existingVariants
+            .filter((v: any) => !v.color && v.size && !allSizeNames.has(v.size))
+            .map((v: any) => ({
+                label: v.size,
+                price: v.price?.toString() || '',
+                stock: v.stock?.toString() || '0',
+                sku: v.sku || '',
+            }));
+    });
+    const [newCustomLabel, setNewCustomLabel] = useState('');
+
+    const addCustomVariant = () => {
+        const label = newCustomLabel.trim();
+        if (!label || customVariants.some(cv => cv.label === label)) return;
+        setCustomVariants(prev => [...prev, { label, price: price?.toString() || '', stock: '0', sku: '' }]);
+        setNewCustomLabel('');
+    };
+
+    const removeCustomVariant = (label: string) => {
+        setCustomVariants(prev => prev.filter(cv => cv.label !== label));
+    };
+
+    const updateCustomVariant = (label: string, field: string, value: string) => {
+        setCustomVariants(prev => prev.map(cv => cv.label === label ? { ...cv, [field]: value } : cv));
+    };
 
     // Build variants from colors × sizes (or just sizes, or just colors)
     const buildVariantKey = (color: string, size: string) => `${color}|||${size}`;
@@ -125,17 +160,26 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         return combos;
     })();
 
-    // Build the flat variants array for saving (used by handleSubmit)
-    const variants = variantCombinations.map(combo => {
-        const d = variantData[combo.key] || { price: price, stock: '0', sku: '' };
-        return {
-            name: combo.size,
-            color: combo.color,
-            sku: d.sku,
-            price: d.price || price,
-            stock: d.stock || '0'
-        };
-    });
+    // Build the flat variants array for saving (color×size + custom)
+    const variants = [
+        ...variantCombinations.map(combo => {
+            const d = variantData[combo.key] || { price: price, stock: '0', sku: '' };
+            return {
+                name: combo.size,
+                color: combo.color,
+                sku: d.sku,
+                price: d.price || price,
+                stock: d.stock || '0'
+            };
+        }),
+        ...customVariants.map(cv => ({
+            name: cv.label,
+            color: '',
+            sku: cv.sku,
+            price: cv.price || price,
+            stock: cv.stock || '0'
+        })),
+    ];
 
     const updateVariantField = (key: string, field: string, value: string) => {
         setVariantData(prev => ({
@@ -707,8 +751,110 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                         <div className="space-y-8">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
-                                <p className="text-gray-600 mt-1">Select colors and sizes below — variants are generated automatically</p>
+                                <p className="text-gray-600 mt-1">Add custom variants, or select colors and sizes below</p>
                             </div>
+
+                            {/* Custom / Bulk Variants */}
+                            <div className="bg-amber-50 rounded-xl p-6 border border-amber-200">
+                                <h4 className="text-sm font-bold text-gray-900 mb-1 flex items-center">
+                                    <i className="ri-price-tag-3-line mr-2 text-lg text-amber-600"></i>
+                                    Custom Variants
+                                    {customVariants.length > 0 && (
+                                        <span className="ml-2 bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                            {customVariants.length} added
+                                        </span>
+                                    )}
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-4">
+                                    Add free-form variants like &quot;Mixed Fruit Juice 10pcs&quot; or &quot;Bundle Pack A&quot;. No color or size needed.
+                                </p>
+
+                                {/* Add new custom variant */}
+                                <div className="flex items-center gap-2 mb-4">
+                                    <input
+                                        type="text"
+                                        value={newCustomLabel}
+                                        onChange={(e) => setNewCustomLabel(e.target.value)}
+                                        placeholder="e.g. Mixed Fruit Juice 10pcs"
+                                        className="flex-1 px-3 py-2.5 border border-amber-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomVariant(); } }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={addCustomVariant}
+                                        disabled={!newCustomLabel.trim()}
+                                        className="px-4 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
+                                    >
+                                        <i className="ri-add-line mr-1"></i> Add
+                                    </button>
+                                </div>
+
+                                {/* Custom variants list */}
+                                {customVariants.length > 0 && (
+                                    <div className="bg-white rounded-lg border border-amber-200 overflow-hidden">
+                                        <table className="w-full">
+                                            <thead className="bg-amber-50 border-b border-amber-200">
+                                                <tr>
+                                                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-700">Variant Name</th>
+                                                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-700">Price (GH₵)</th>
+                                                    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-700">Stock</th>
+                                                    <th className="py-2.5 px-4 w-10"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {customVariants.map((cv) => (
+                                                    <tr key={cv.label} className="border-b border-gray-100 hover:bg-gray-50">
+                                                        <td className="py-2.5 px-4">
+                                                            <span className="text-sm font-medium text-gray-900 bg-amber-50 px-2.5 py-1 rounded border border-amber-200">
+                                                                {cv.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-2.5 px-4">
+                                                            <input
+                                                                type="number"
+                                                                value={cv.price}
+                                                                onChange={(e) => updateCustomVariant(cv.label, 'price', e.target.value)}
+                                                                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
+                                                                step="0.01"
+                                                                placeholder={price?.toString() || '0'}
+                                                            />
+                                                        </td>
+                                                        <td className="py-2.5 px-4">
+                                                            <input
+                                                                type="number"
+                                                                value={cv.stock}
+                                                                onChange={(e) => updateCustomVariant(cv.label, 'stock', e.target.value)}
+                                                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
+                                                                placeholder="0"
+                                                            />
+                                                        </td>
+                                                        <td className="py-2.5 px-4">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeCustomVariant(cv.label)}
+                                                                className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                                                                title="Remove variant"
+                                                            >
+                                                                <i className="ri-delete-bin-line"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Divider */}
+                            {customVariants.length > 0 && (
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+                                    <div className="relative flex justify-center">
+                                        <span className="bg-white px-4 text-xs text-gray-400 uppercase tracking-wide">or use structured variants</span>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* STEP 1: Colors */}
                             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
@@ -961,12 +1107,11 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                                 </div>
                             )}
 
-                            {variantCombinations.length === 0 && (
+                            {variantCombinations.length === 0 && customVariants.length === 0 && (
                                 <div className="p-8 text-center text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                                     <i className="ri-palette-line text-4xl text-gray-300 mb-2 block"></i>
                                     <p className="font-medium">No variants configured</p>
-                                    <p className="text-sm mt-1">Select colors and/or sizes above to create variant combinations.</p>
-                                    <p className="text-xs mt-2 text-gray-400">You can add just colors, just sizes, or both for a full grid.</p>
+                                    <p className="text-sm mt-1">Add custom variants above, or select colors and/or sizes to create variant combinations.</p>
                                 </div>
                             )}
                         </div>
