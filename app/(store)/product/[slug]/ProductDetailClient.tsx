@@ -189,7 +189,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const hasVariants = product?.variants?.length > 0;
   const hasColors = product?.colors?.length > 0;
   const needsVariantSelection = hasVariants && !selectedVariant;
-  const needsColorSelection = hasColors && !selectedColor;
+  // If a custom variant (no color) is already selected, color selection is not required
+  const selectedIsCustom = selectedVariant && !selectedVariant.color;
+  const needsColorSelection = hasColors && !selectedColor && !selectedIsCustom;
 
   // Determine the active price: variant price if selected, otherwise base price
   const activePrice = selectedVariant?.price ?? product?.price ?? 0;
@@ -457,15 +459,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {/* Size / Name Variant Selector */}
                 {hasVariants && (() => {
-                  // Filter variants: if colors exist and one is selected, show only matching; otherwise show all
                   const hasColors = product.colors.length > 0;
-                  const visibleVariants = hasColors && selectedColor
+                  // Custom variants have no color — always show them
+                  const customVariants = product.variants.filter((v: any) => !v.color);
+                  const colorVariants = hasColors && selectedColor
                     ? product.variants.filter((v: any) => v.color === selectedColor)
                     : hasColors
-                      ? [] // Don't show name variants until a color is picked
-                      : product.variants;
+                      ? []
+                      : product.variants.filter((v: any) => v.color);
+                  const visibleVariants = [...colorVariants, ...customVariants];
 
-                  // Check if we need to show the name selector (skip if all visible variants have the same name or only 1)
                   const uniqueNames = [...new Set(visibleVariants.map((v: any) => v.name).filter(Boolean))];
                   const showNameSelector = visibleVariants.length > 1 || (!hasColors && visibleVariants.length > 0);
 
