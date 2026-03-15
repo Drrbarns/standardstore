@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server';
 import { supabaseAdmin } from './supabase-admin';
 
 /**
@@ -10,6 +11,76 @@ export interface AuthResult {
     user?: any;
     role?: string;
     error?: string;
+}
+
+/**
+ * Extract the Supabase access token from the request.
+ * Checks cookies first (set by admin login), then Authorization header.
+ */
+function extractToken(req: NextRequest | Request): string | undefined {
+    let token: string | undefined;
+
+    if ('cookies' in req && typeof (req as NextRequest).cookies?.get === 'function') {
+        const nr = req as NextRequest;
+        token = nr.cookies.get('sb-access-token')?.value;
+
+        if (!token) {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+            const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+            if (projectRef) {
+                const raw = nr.cookies.get(`sb-${projectRef}-auth-token`)?.value;
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed) && parsed[0]) token = parsed[0];
+                        else if (typeof parsed === 'object' && parsed.access_token) token = parsed.access_token;
+                        else if (typeof parsed === 'string') token = parsed;
+                    } catch {
+                        token = raw;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!token) {
+        const authHeader = req.headers.get('authorization');
+        token = authHeader?.replace('Bearer ', '');
+    }
+
+    return token;
+}
+
+/**
+ * Authenticate an API request and require admin/staff role.
+ * Works with both cookie-based (admin pages) and Bearer token auth.
+ */
+export async function requireAdmin(req: NextRequest | Request): Promise<AuthResult> {
+    const token = extractToken(req);
+    if (!token) {
+        return { authenticated: false, error: 'Not authenticated' };
+    }
+
+    try {
+        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+        if (error || !user) {
+            return { authenticated: false, error: 'Invalid or expired session' };
+        }
+
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        if (!profile || (profile.role !== 'admin' && profile.role !== 'staff')) {
+            return { authenticated: false, error: 'Admin access required' };
+        }
+
+        return { authenticated: true, user, role: profile.role };
+    } catch (err: any) {
+        return { authenticated: false, error: err.message || 'Auth failed' };
+    }
 }
 
 /**

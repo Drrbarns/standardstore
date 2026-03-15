@@ -3,7 +3,17 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+
+async function secureFetchOrder(orderNumber: string) {
+  const res = await fetch('/api/orders/lookup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId: orderNumber, includeItems: true }),
+  });
+  if (!res.ok) return null;
+  const { order } = await res.json();
+  return order;
+}
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
@@ -22,19 +32,10 @@ function OrderSuccessContent() {
       }
 
       try {
-        const { data: orderData, error } = await supabase
-          .from('orders')
-          .select(`
-                    *,
-                    order_items (*)
-                `)
-          .eq('order_number', orderNumber)
-          .single();
-
-        if (error) throw error;
+        const orderData = await secureFetchOrder(orderNumber);
+        if (!orderData) throw new Error('Not found');
         setOrder(orderData);
 
-        // If redirected from payment and order is still pending, try to verify
         if (paymentSuccess === 'true' && orderData && orderData.payment_status !== 'paid') {
           verifyPayment(orderNumber, orderData);
         }
@@ -47,19 +48,12 @@ function OrderSuccessContent() {
     fetchOrder();
   }, [orderNumber]);
 
-  // Payment verification - called when user is redirected from Moolre with payment_success=true
   const verifyPayment = async (orderNum: string, initialOrder: any) => {
     setVerifying(true);
     
-    // Wait 3 seconds to give the callback a chance to process first
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Re-fetch order to check if callback already updated it
-    const { data: refreshed } = await supabase
-      .from('orders')
-      .select('*, order_items (*)')
-      .eq('order_number', orderNum)
-      .single();
+    const refreshed = await secureFetchOrder(orderNum);
     
     if (refreshed?.payment_status === 'paid') {
       setOrder(refreshed);
@@ -67,8 +61,6 @@ function OrderSuccessContent() {
       return;
     }
 
-    // Callback hasn't fired - verify via our endpoint
-    // Verify payment via Moolre API — we no longer trust the redirect alone
     try {
       const res = await fetch('/api/payment/moolre/verify', {
         method: 'POST',
@@ -77,15 +69,9 @@ function OrderSuccessContent() {
       });
       
       const result = await res.json();
-      console.log('Payment verification result:', result);
       
       if (result.success && result.payment_status === 'paid') {
-        // Re-fetch full order data
-        const { data: updated } = await supabase
-          .from('orders')
-          .select('*, order_items (*)')
-          .eq('order_number', orderNum)
-          .single();
+        const updated = await secureFetchOrder(orderNum);
         if (updated) setOrder(updated);
       }
     } catch (err) {

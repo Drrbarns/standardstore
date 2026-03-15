@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,8 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
+  if (!auth.authenticated) return NextResponse.json({ error: auth.error }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get('days') || '30');
   const since = new Date(Date.now() - days * 86400000).toISOString();

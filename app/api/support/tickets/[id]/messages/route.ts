@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,8 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin(_req);
+  if (!auth.authenticated) return NextResponse.json({ error: auth.error }, { status: 401 });
   const { id } = await params;
   const { data, error } = await supabaseAdmin
     .from('support_ticket_messages')
@@ -19,6 +22,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin(req);
+  if (!auth.authenticated) return NextResponse.json({ error: auth.error }, { status: 401 });
   const { id } = await params;
   const body = await req.json();
 

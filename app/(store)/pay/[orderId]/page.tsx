@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface StockIssue {
@@ -28,20 +27,21 @@ export default function PaymentPage() {
   useEffect(() => {
     async function fetchOrder() {
       try {
-        let query = supabase
-          .from('orders')
-          .select('*')
-          .or(`id.eq.${orderId},order_number.eq.${orderId}`)
-          .single();
+        // Secure server-side lookup — no direct Supabase query from client
+        const res = await fetch('/api/orders/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId }),
+        });
+        const result = await res.json();
 
-        const { data, error: fetchError } = await query;
-
-        if (fetchError || !data) {
+        if (!res.ok || !result.order) {
           setError('Order not found. Please check your link and try again.');
           setLoading(false);
           return;
         }
 
+        const data = result.order;
         setOrder(data);
 
         if (data.payment_status === 'paid') {
@@ -49,34 +49,20 @@ export default function PaymentPage() {
           return;
         }
 
-        // Check stock availability for all items in this order
+        // Stock check via payment API (server-side) happens at payment time
+        // Do a lightweight client check for UX only
         setCheckingStock(true);
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('quantity, product_id, products(name, quantity, is_active)')
-          .eq('order_id', data.id);
-
-        if (orderItems && orderItems.length > 0) {
-          const issues: StockIssue[] = [];
-          for (const item of orderItems) {
-            const product = (item as any).products;
-            if (!product) continue;
-            if (!product.is_active) {
-              issues.push({
-                productName: product.name,
-                requested: item.quantity,
-                available: 0,
-              });
-            } else if (product.quantity < item.quantity) {
-              issues.push({
-                productName: product.name,
-                requested: item.quantity,
-                available: product.quantity,
-              });
-            }
+        try {
+          const stockRes = await fetch('/api/orders/stock-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: data.id }),
+          });
+          const stockResult = await stockRes.json();
+          if (stockResult.issues && stockResult.issues.length > 0) {
+            setStockIssues(stockResult.issues);
           }
-          setStockIssues(issues);
-        }
+        } catch {}
         setCheckingStock(false);
 
       } catch (err) {
