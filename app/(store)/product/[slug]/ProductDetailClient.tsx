@@ -408,6 +408,60 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 <p className="text-gray-700 leading-relaxed mb-8 text-lg">{product.description}</p>
 
+                {/* Custom / Bulk Variants — shown first, independent of color/size */}
+                {hasVariants && (() => {
+                  const customVars = product.variants.filter((v: any) => !v.color);
+                  if (customVars.length === 0) return null;
+                  return (
+                    <div className="mb-6">
+                      <label className="block font-semibold text-gray-900 mb-3">
+                        Options: {selectedVariant && !selectedVariant.color ? (
+                          <span className="text-emerald-700 font-normal">{selectedVariant.name} — GH₵{selectedVariant.price?.toFixed(2)}</span>
+                        ) : (
+                          <span className="text-gray-400 font-normal text-sm">Select an option</span>
+                        )}
+                      </label>
+                      <div className="flex flex-wrap gap-3">
+                        {customVars.map((variant: any) => {
+                          const isSelected = selectedVariant?.id === variant.id;
+                          const variantStock = variant.stock ?? variant.quantity ?? 0;
+                          const isOutOfStock = variantStock === 0 && product.stockCount === 0;
+                          return (
+                            <button
+                              key={variant.id || variant.name}
+                              onClick={() => {
+                                setSelectedVariant(variant);
+                                setSelectedSize(variant.name);
+                                setSelectedColor('');
+                              }}
+                              disabled={isOutOfStock}
+                              className={`px-6 py-3 rounded-lg border-2 font-medium transition-all whitespace-nowrap cursor-pointer flex flex-col items-center ${isSelected
+                                ? 'border-emerald-700 bg-emerald-50 text-emerald-700 shadow-sm'
+                                : isOutOfStock
+                                  ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
+                                  : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                              }`}
+                            >
+                              <span>{variant.name}</span>
+                              <span className={`text-xs mt-0.5 ${isSelected ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                GH₵{(variant.price || product.price).toFixed(2)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {product.colors.length > 0 && (
+                        <div className="relative mt-6 mb-2">
+                          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+                          <div className="relative flex justify-center">
+                            <span className="bg-white px-3 text-xs text-gray-400">or choose by color & size</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Color Selector */}
                 {hasVariants && product.colors.length > 0 && (
                   <div className="mb-6">
@@ -429,13 +483,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                             key={color}
                             onClick={() => {
                               setSelectedColor(color);
-                              // If only one variant for this color, auto-select it
                               const matching = product.variants.filter((v: any) => v.color === color);
                               if (matching.length === 1) {
                                 setSelectedVariant(matching[0]);
                                 setSelectedSize(matching[0].name);
                               } else {
-                                // Reset variant selection so user picks a size too
                                 setSelectedVariant(null);
                                 setSelectedSize('');
                               }
@@ -457,17 +509,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
 
-                {/* Size / Name Variant Selector */}
+                {/* Size / Name Variant Selector — only color-based variants */}
                 {hasVariants && (() => {
                   const hasColors = product.colors.length > 0;
-                  // Custom variants have no color — always show them
-                  const customVariants = product.variants.filter((v: any) => !v.color);
-                  const colorVariants = hasColors && selectedColor
+                  const visibleVariants = hasColors && selectedColor
                     ? product.variants.filter((v: any) => v.color === selectedColor)
                     : hasColors
                       ? []
-                      : product.variants.filter((v: any) => v.color);
-                  const visibleVariants = [...colorVariants, ...customVariants];
+                      : product.variants.filter((v: any) => !!v.color);
 
                   const uniqueNames = [...new Set(visibleVariants.map((v: any) => v.name).filter(Boolean))];
                   const showNameSelector = visibleVariants.length > 1 || (!hasColors && visibleVariants.length > 0);
