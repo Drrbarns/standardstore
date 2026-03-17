@@ -39,8 +39,75 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState('description');
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const [pendingSelections, setPendingSelections] = useState<Array<{ variant: any; color: string; size: string; quantity: number; price: number; stock: number; label: string }>>([]);
 
   const { addToCart } = useCart();
+
+  const buildVariantLabel = (variant: any, color: string, size: string) => {
+    if (!variant) return '';
+    const c = variant.color || color || '';
+    const n = variant.name || size || '';
+    if (c && n) return `${c} / ${n}`;
+    return c || n || '';
+  };
+
+  const addCurrentToPendingList = () => {
+    if (!product || needsVariantSelection || needsColorSelection || activeStock === 0) return;
+    const label = buildVariantLabel(selectedVariant, selectedColor, selectedSize);
+    const existing = pendingSelections.find(
+      (p) => p.variant?.id === selectedVariant?.id && p.color === selectedColor && p.size === selectedSize
+    );
+    if (existing) {
+      const newQty = Math.min(existing.stock, existing.quantity + quantity);
+      setPendingSelections((prev) =>
+        prev.map((p) => (p === existing ? { ...p, quantity: newQty } : p))
+      );
+    } else {
+      setPendingSelections((prev) => [
+        ...prev,
+        {
+          variant: selectedVariant,
+          color: selectedColor,
+          size: selectedSize,
+          quantity,
+          price: activePrice,
+          stock: activeStock,
+          label
+        }
+      ]);
+    }
+  };
+
+  const updatePendingQuantity = (index: number, delta: number) => {
+    setPendingSelections((prev) =>
+      prev.map((p, i) =>
+        i === index
+          ? { ...p, quantity: Math.max(1, Math.min(p.stock, p.quantity + delta)) }
+          : p
+      )
+    );
+  };
+
+  const removeFromPending = (index: number) => {
+    setPendingSelections((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addAllPendingToCart = () => {
+    pendingSelections.forEach((p) => {
+      addToCart({
+        id: product.id,
+        name: product.name,
+        price: p.price,
+        image: product.images[0],
+        quantity: p.quantity,
+        variant: p.label,
+        slug: product.slug,
+        maxStock: p.stock,
+        moq: product.moq || 1
+      });
+    });
+    setPendingSelections([]);
+  };
 
   useEffect(() => {
     async function fetchProduct() {
@@ -666,6 +733,55 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </div>
                 </div>
 
+                {/* Pending selections list — when user is building a multi-variant cart */}
+                {hasVariants && pendingSelections.length > 0 && (
+                  <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <i className="ri-list-check-2 text-emerald-700"></i>
+                      Your selections ({pendingSelections.reduce((s, p) => s + p.quantity, 0)} items)
+                    </h4>
+                    <ul className="space-y-2 mb-4">
+                      {pendingSelections.map((p, i) => (
+                        <li key={i} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-emerald-100">
+                          <span className="font-medium text-gray-800">{p.label} × {p.quantity}</span>
+                          <span className="text-emerald-700 font-semibold">GH₵{(p.price * p.quantity).toFixed(2)}</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => updatePendingQuantity(i, -1)}
+                              disabled={p.quantity <= 1}
+                              className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+                            >
+                              <i className="ri-subtract-line text-sm"></i>
+                            </button>
+                            <span className="w-8 text-center text-sm font-medium">{p.quantity}</span>
+                            <button
+                              onClick={() => updatePendingQuantity(i, 1)}
+                              disabled={p.quantity >= p.stock}
+                              className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+                            >
+                              <i className="ri-add-line text-sm"></i>
+                            </button>
+                            <button
+                              onClick={() => removeFromPending(i)}
+                              className="w-8 h-8 flex items-center justify-center rounded border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer ml-1"
+                              title="Remove"
+                            >
+                              <i className="ri-close-line text-sm"></i>
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={addAllPendingToCart}
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <i className="ri-shopping-cart-2-line text-lg"></i>
+                      Add all {pendingSelections.reduce((s, p) => s + p.quantity, 0)} to cart
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                   <button
                     disabled={activeStock === 0 || needsVariantSelection || needsColorSelection}
@@ -675,6 +791,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <i className="ri-shopping-cart-line text-xl"></i>
                     <span>{activeStock === 0 ? 'Out of Stock' : needsColorSelection ? 'Select a Color' : needsVariantSelection ? 'Select a Variant' : 'Add to Cart'}</span>
                   </button>
+                  {activeStock > 0 && !needsVariantSelection && !needsColorSelection && hasVariants && (
+                    <button
+                      onClick={addCurrentToPendingList}
+                      className="sm:w-auto border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 px-6 py-4 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer flex items-center gap-2"
+                      title="Add this combination to your list, then add more variants before adding all to cart"
+                    >
+                      <i className="ri-add-circle-line text-xl"></i>
+                      Add to list
+                    </button>
+                  )}
                   {activeStock > 0 && !needsVariantSelection && !needsColorSelection && (
                     <button
                       onClick={handleBuyNow}
