@@ -53,8 +53,7 @@ export default function Home() {
           .select('*, product_variants(*), product_images(*)')
           .eq('status', 'active')
           .eq('featured', true)
-          .order('created_at', { ascending: false })
-          .limit(8);
+          .order('created_at', { ascending: false });
 
         if (productsError) throw productsError;
         setFeaturedProducts(productsData || []);

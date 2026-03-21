@@ -28,3 +28,21 @@ To learn more about Next.js, take a look at the following resources:
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Mobile App (Expo)
+
+A React Native app now lives in `apps/mobile` and consumes the existing storefront APIs.
+
+### Run mobile app from repo root
+
+```bash
+npm run mobile:start
+```
+
+Other helpers:
+
+- `npm run mobile:ios`
+- `npm run mobile:android`
+- `npm run mobile:web`
+
+See `apps/mobile/README.md` for environment setup and next steps.
