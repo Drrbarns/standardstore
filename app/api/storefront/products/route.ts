@@ -37,19 +37,23 @@ export async function GET(request: Request) {
                 categories(id, name, slug),
                 product_images(url, position),
                 product_variants(id, name, price, quantity)
-            `)
-            .order('created_at', { ascending: false });
+            `);
 
         // Always filter active products
         query = query.eq('status', 'active');
 
         if (featured) {
-            query = query.eq('featured', true).limit(limit);
+            // Prioritize recently edited featured products so newly-featured items show first.
+            query = query
+                .eq('featured', true)
+                .order('updated_at', { ascending: false })
+                .order('created_at', { ascending: false })
+                .limit(limit);
         } else if (category) {
             // Filter by category slug or name
-            query = query.limit(limit);
+            query = query.order('created_at', { ascending: false }).limit(limit);
         } else {
-            query = query.limit(limit);
+            query = query.order('created_at', { ascending: false }).limit(limit);
         }
 
         const { data, error } = await query;

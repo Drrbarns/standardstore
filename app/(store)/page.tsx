@@ -53,6 +53,7 @@ export default function Home() {
           .select('*, product_variants(*), product_images(*)')
           .eq('status', 'active')
           .eq('featured', true)
+          .order('updated_at', { ascending: false })
           .order('created_at', { ascending: false });
 
         if (productsError) throw productsError;
