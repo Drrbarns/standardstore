@@ -403,6 +403,7 @@ export default function POSPage() {
                 .from('products')
                 .select(`id, name, price, quantity, sku, metadata, categories(name), product_images(url)`)
                 .eq('status', 'active')
+                .eq('is_porials', false)
                 .order('name');
 
             if (prodData) {

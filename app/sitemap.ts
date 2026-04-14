@@ -39,6 +39,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.5,
     },
+    {
+      url: `${baseUrl}/porials-pitch`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.65,
+    },
   ];
 
   // Dynamic product pages
@@ -52,7 +58,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const { data: products } = await supabase
       .from('products')
       .select('slug, updated_at')
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .eq('is_porials', false);
 
     if (products) {
       productPages = products.map((product) => ({

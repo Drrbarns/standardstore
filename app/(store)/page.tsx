@@ -52,6 +52,7 @@ export default function Home() {
           .from('products')
           .select('*, product_variants(*), product_images(*)')
           .eq('status', 'active')
+          .eq('is_porials', false)
           .eq('featured', true)
           .order('updated_at', { ascending: false })
           .order('created_at', { ascending: false });

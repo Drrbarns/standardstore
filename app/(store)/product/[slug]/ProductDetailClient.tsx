@@ -8,7 +8,6 @@ import { cachedQuery } from '@/lib/query-cache';
 import ProductCard from '@/components/ProductCard';
 import ProductReviews from '@/components/ProductReviews';
 import { StructuredData, generateProductSchema, generateBreadcrumbSchema } from '@/components/SEOHead';
-import { notFound } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -205,12 +204,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         // Fetch related products (cached for 5 minutes)
         if (productData.category_id) {
-          const { data: related } = await cachedQuery<{ data: any; error: any }>(
+            const { data: related } = await cachedQuery<{ data: any; error: any }>(
             `related:${productData.category_id}:${productData.id}`,
             (() => supabase
               .from('products')
               .select('*, product_images(url, position), product_variants(id, name, price, quantity)')
               .eq('category_id', productData.category_id)
+              .eq('is_porials', false)
               .neq('id', productData.id)
               .limit(4)) as any,
             5 * 60 * 1000

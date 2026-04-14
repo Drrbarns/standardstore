@@ -97,6 +97,13 @@ export default function Header() {
                   Categories
                 </Link>
                 <Link
+                  href="/porials-pitch"
+                  className="text-gray-700 hover:text-emerald-700 font-medium transition-colors whitespace-nowrap"
+                  aria-label="Porials Pitch exhibition"
+                >
+                  Porials Pitch
+                </Link>
+                <Link
                   href="/about"
                   className="text-gray-700 hover:text-emerald-700 font-medium transition-colors whitespace-nowrap"
                   aria-label="Learn about us"
@@ -255,6 +262,7 @@ export default function Header() {
                 { label: 'Home', href: '/' },
                 { label: 'Shop', href: '/shop' },
                 { label: 'Categories', href: '/categories' },
+                { label: 'Porials Pitch', href: '/porials-pitch' },
                 { label: 'About', href: '/about' },
                 { label: 'Contact', href: '/contact' },
               ].map((link) => (

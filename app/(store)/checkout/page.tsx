@@ -164,9 +164,11 @@ export default function CheckoutPage() {
       
       const productIds = cart.map(item => item.id).filter(id => isValidUUID(id));
       const { data: productsData } = productIds.length > 0
-        ? await supabase.from('products').select('id, metadata').in('id', productIds)
+        ? await supabase.from('products').select('id, metadata, is_porials').in('id', productIds)
         : { data: [] };
-      const productMetaMap = new Map((productsData || []).map((p: any) => [p.id, p.metadata]));
+      const productMetaMap = new Map(
+        (productsData || []).map((p: any) => [p.id, { metadata: p.metadata, is_porials: p.is_porials }])
+      );
       
       const orderItems = [];
       for (const item of cart) {
@@ -175,20 +177,26 @@ export default function CheckoutPage() {
         if (!isValidUUID(productId)) {
           const { data: product } = await supabase
             .from('products')
-            .select('id, metadata')
+            .select('id, metadata, is_porials')
             .or(`slug.eq.${productId},id.eq.${productId}`)
             .single();
           
           if (product) {
             productId = product.id;
-            productMetaMap.set(product.id, product.metadata);
+            productMetaMap.set(product.id, { metadata: product.metadata, is_porials: product.is_porials });
           } else {
             throw new Error(`Product not found: ${item.name}. Please remove it from your cart and try again.`);
           }
         }
         
-        const prodMeta = productMetaMap.get(productId);
-        
+        const prodInfo = productMetaMap.get(productId);
+        if (prodInfo?.is_porials) {
+          throw new Error(
+            'Your cart contains an exhibition-only item. Remove it to continue — those products are not available for purchase.'
+          );
+        }
+        const prodMeta = prodInfo?.metadata;
+
         orderItems.push({
           product_id: productId,
           product_name: item.name,

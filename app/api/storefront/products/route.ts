@@ -39,8 +39,8 @@ export async function GET(request: Request) {
                 product_variants(id, name, price, quantity)
             `);
 
-        // Always filter active products
-        query = query.eq('status', 'active');
+        // Always filter active products; exclude exhibition-only (Porials) items
+        query = query.eq('status', 'active').eq('is_porials', false);
 
         if (featured) {
             // Prioritize recently edited featured products so newly-featured items show first.

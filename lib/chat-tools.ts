@@ -70,6 +70,7 @@ export async function searchProducts(
     .from('products')
     .select(`id, name, slug, price, quantity, metadata, product_images(url, position)`)
     .eq('status', 'active')
+    .eq('is_porials', false)
     .or(`name.ilike.%${term}%,description.ilike.%${term}%`)
     .order('name')
     .limit(limit);
@@ -93,7 +94,7 @@ export async function getProductForCart(
 
   const q = supabase
     .from('products')
-    .select(`id, name, slug, price, quantity, metadata, product_images(url, position)`)
+    .select(`id, name, slug, price, quantity, metadata, product_images(url, position), is_porials`)
     .eq('status', 'active');
 
   const { data, error } = isId
@@ -101,6 +102,7 @@ export async function getProductForCart(
     : await q.eq('slug', slugOrId).single();
 
   if (error || !data) return null;
+  if (data.is_porials) return null;
   return mapProduct(data);
 }
 
@@ -314,6 +316,7 @@ export async function getRecommendations(
     .from('products')
     .select(`id, name, slug, price, quantity, metadata, product_images(url, position)`)
     .eq('status', 'active')
+    .eq('is_porials', false)
     .gt('quantity', 0);
 
   if (context?.trim()) {
@@ -514,12 +517,16 @@ export async function createChatOrder(
     const productIds = items.map(i => i.productId);
     const { data: products, error: prodError } = await supabaseAdmin
       .from('products')
-      .select('id, name, slug, price, quantity, metadata, product_images(url, position)')
+      .select('id, name, slug, price, quantity, metadata, product_images(url, position), is_porials')
       .in('id', productIds)
       .eq('status', 'active');
 
     if (prodError || !products || products.length === 0) {
       return { success: false, message: 'Could not find the requested products. They may no longer be available.' };
+    }
+
+    if (products.some((p: any) => p.is_porials)) {
+      return { success: false, message: 'Exhibition (Porials) items cannot be ordered through chat.' };
     }
 
     const productMap = new Map<string, any>(products.map((p: any) => [p.id, p]));

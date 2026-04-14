@@ -26,6 +26,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     const [description, setDescription] = useState(initialData?.description || '');
     const [status, setStatus] = useState(initialData?.status || 'Active');
     const [featured, setFeatured] = useState(initialData?.featured || false);
+    const [isPorials, setIsPorials] = useState(initialData?.is_porials || false);
     const [preorderShipping, setPreorderShipping] = useState(initialData?.metadata?.preorder_shipping || '');
     const [activeTab, setActiveTab] = useState('general');
 
@@ -348,6 +349,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 moq: parseInt(moq) || 1,
                 status: status.toLowerCase(),
                 featured,
+                is_porials: isPorials,
                 seo_title: seoTitle,
                 seo_description: metaDescription,
                 tags: (keywords as string).split(',').map((k: string) => k.trim()).filter(Boolean),
@@ -585,6 +587,24 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                                 <label className="text-gray-900 font-medium">
                                     Feature this product on homepage
                                 </label>
+                            </div>
+
+                            <div className="flex items-start space-x-3 p-4 bg-amber-50/80 border border-amber-200 rounded-xl">
+                                <input
+                                    id="is-porials"
+                                    type="checkbox"
+                                    checked={isPorials}
+                                    onChange={(e) => setIsPorials(e.target.checked)}
+                                    className="w-5 h-5 mt-0.5 text-emerald-700 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer shrink-0"
+                                />
+                                <div>
+                                    <label htmlFor="is-porials" className="text-gray-900 font-medium cursor-pointer">
+                                        Porials (exhibition only)
+                                    </label>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        When enabled, this product appears only on the Porials Pitch page as a display card with price — not in the shop, cart, or product page.
+                                    </p>
+                                </div>
                             </div>
 
                             <div>

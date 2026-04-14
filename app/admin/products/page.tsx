@@ -311,7 +311,14 @@ export default function ProductsPage() {
                           <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">{product.name}</p>
+                          <p className="font-semibold text-gray-900 flex flex-wrap items-center gap-2">
+                            {product.name}
+                            {product.is_porials && (
+                              <span className="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900">
+                                Porials
+                              </span>
+                            )}
+                          </p>
                           <div className="flex items-center mt-1">
                             <span className="text-xs text-gray-400">ID: {product.id.substring(0, 8)}...</span>
                           </div>
@@ -374,7 +381,14 @@ export default function ProductsPage() {
                 <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mb-2 capitalize ${statusColors[product.status] || 'bg-gray-100 text-gray-600'}`}>
                   {product.status}
                 </span>
-                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 flex flex-wrap items-center gap-2">
+                  {product.name}
+                  {product.is_porials && (
+                    <span className="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 shrink-0">
+                      Porials
+                    </span>
+                  )}
+                </h3>
                 <p className="text-sm text-gray-600 mb-2">{product.category}</p>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-lg font-bold text-gray-900">GH₵ {product.price}</p>

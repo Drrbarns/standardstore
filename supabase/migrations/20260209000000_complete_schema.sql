@@ -712,6 +712,7 @@ CREATE TABLE public.products (
   tags text[],
   status product_status DEFAULT 'active'::product_status,
   featured boolean DEFAULT false,
+  is_porials boolean NOT NULL DEFAULT false,
   options jsonb DEFAULT '[]'::jsonb,
   external_id text,
   external_source text,

@@ -20,6 +20,24 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing required order fields' }, { status: 400 });
         }
 
+        const productIds = [...new Set(items.map((i: any) => i.product_id).filter(Boolean))] as string[];
+        if (productIds.length > 0) {
+            const { data: porialsRows, error: porialsErr } = await supabaseAdmin
+                .from('products')
+                .select('id, is_porials')
+                .in('id', productIds);
+            if (porialsErr) {
+                console.error('[Create Order] Porials check:', porialsErr.message);
+                return NextResponse.json({ error: 'Could not validate products' }, { status: 500 });
+            }
+            if (porialsRows?.some((p: { is_porials?: boolean }) => p.is_porials)) {
+                return NextResponse.json(
+                    { error: 'Exhibition (Porials) products cannot be purchased online.' },
+                    { status: 400 }
+                );
+            }
+        }
+
         const { data: order, error: orderError } = await supabaseAdmin
             .from('orders')
             .insert([orderData])
