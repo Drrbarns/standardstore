@@ -33,26 +33,28 @@ export default function CheckoutPage() {
     region: ''
   });
 
-  // Ghana Regions for dropdown
-  const ghanaRegions = [
-    'Greater Accra',
-    'Ashanti',
-    'Western',
-    'Central',
-    'Eastern',
-    'Northern',
-    'Volta',
-    'Upper East',
-    'Upper West',
-    'Brong-Ahafo',
-    'Ahafo',
-    'Bono',
-    'Bono East',
-    'North East',
-    'Savannah',
-    'Oti',
-    'Western North'
-  ];
+  const regionCities: Record<string, string[]> = {
+    'Greater Accra': ['Accra', 'Tema', 'Madina', 'Adenta', 'Ashaiman', 'Teshie', 'Nungua', 'Lashibi', 'Sakumono', 'Kasoa', 'Weija', 'Dansoman', 'Kaneshie', 'Osu', 'Labadi', 'East Legon', 'Spintex', 'Airport Residential', 'Dzorwulu', 'Achimota', 'Dome', 'Haatso', 'Kwabenya', 'Dodowa', 'Prampram', 'Ningo'],
+    'Ashanti': ['Kumasi', 'Obuasi', 'Ejisu', 'Konongo', 'Mampong', 'Bekwai', 'Agogo', 'Mankranso', 'Offinso', 'Nkawie', 'Juaso', 'New Edubiase'],
+    'Western': ['Takoradi', 'Sekondi', 'Tarkwa', 'Prestea', 'Axim', 'Elubo', 'Half Assini', 'Agona Nkwanta', 'Shama'],
+    'Central': ['Cape Coast', 'Winneba', 'Kasoa', 'Mankessim', 'Saltpond', 'Dunkwa-on-Offin', 'Elmina', 'Agona Swedru', 'Assin Fosu', 'Buduburam'],
+    'Eastern': ['Koforidua', 'Nkawkaw', 'Nsawam', 'Suhum', 'Akosombo', 'Akim Oda', 'Kade', 'Aburi', 'Kibi', 'Somanya', 'Donkorkrom'],
+    'Northern': ['Tamale', 'Yendi', 'Savelugu', 'Damongo', 'Bimbilla', 'Salaga', 'Tolon'],
+    'Volta': ['Ho', 'Keta', 'Hohoe', 'Kpandu', 'Aflao', 'Anloga', 'Sogakope', 'Akatsi', 'Denu'],
+    'Upper East': ['Bolgatanga', 'Navrongo', 'Bawku', 'Zebilla', 'Paga', 'Sandema'],
+    'Upper West': ['Wa', 'Tumu', 'Nandom', 'Lawra', 'Jirapa', 'Nadowli'],
+    'Brong-Ahafo': ['Sunyani', 'Techiman', 'Berekum', 'Dormaa Ahenkro', 'Wenchi', 'Kintampo', 'Nkoranza', 'Atebubu'],
+    'Ahafo': ['Goaso', 'Bechem', 'Duayaw-Nkwanta', 'Kukuom', 'Hwidiem'],
+    'Bono': ['Sunyani', 'Berekum', 'Dormaa Ahenkro', 'Wenchi', 'Odumase'],
+    'Bono East': ['Techiman', 'Kintampo', 'Nkoranza', 'Atebubu', 'Yeji', 'Prang'],
+    'North East': ['Nalerigu', 'Gambaga', 'Walewale', 'Chereponi'],
+    'Savannah': ['Damongo', 'Bole', 'Salaga', 'Buipe', 'Sawla'],
+    'Oti': ['Dambai', 'Jasikan', 'Kadjebi', 'Nkwanta', 'Kpassa'],
+    'Western North': ['Sefwi Wiawso', 'Bibiani', 'Juaboso', 'Enchi', 'Dadieso'],
+  };
+
+  const ghanaRegions = Object.keys(regionCities);
+  const availableCities = shippingData.region ? regionCities[shippingData.region] || [] : [];
 
   const [deliveryMethod, setDeliveryMethod] = useState('pickup');
   const [paymentMethod, setPaymentMethod] = useState('moolre');
@@ -488,25 +490,11 @@ export default function CheckoutPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          City *
-                        </label>
-                        <input
-                          type="text"
-                          value={shippingData.city}
-                          onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${errors.city ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          placeholder="Accra"
-                        />
-                        {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">
                           Region *
                         </label>
                         <select
                           value={shippingData.region}
-                          onChange={(e) => setShippingData({ ...shippingData, region: e.target.value })}
+                          onChange={(e) => setShippingData({ ...shippingData, region: e.target.value, city: '' })}
                           className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white ${errors.region ? 'border-red-500' : 'border-gray-300'
                             }`}
                         >
@@ -516,6 +504,24 @@ export default function CheckoutPage() {
                           ))}
                         </select>
                         {errors.region && <p className="text-sm text-red-600 mt-1">{errors.region}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">
+                          City *
+                        </label>
+                        <select
+                          value={shippingData.city}
+                          onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
+                          disabled={!shippingData.region}
+                          className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white ${errors.city ? 'border-red-500' : 'border-gray-300'
+                            } ${!shippingData.region ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        >
+                          <option value="">{shippingData.region ? 'Select City' : 'Select a region first'}</option>
+                          {availableCities.map((city) => (
+                            <option key={city} value={city}>{city}</option>
+                          ))}
+                        </select>
+                        {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
                       </div>
                     </div>
 

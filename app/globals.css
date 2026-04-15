@@ -578,3 +578,25 @@ img {
 .mini-cart-backdrop {
   animation: miniCartBackdropIn 0.2s ease-out forwards;
 }
+
+/* ========================================
+   HOMEPAGE SCROLLING ANIMATIONS
+   ======================================== */
+
+@keyframes marqueeScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marqueeScroll 25s linear infinite;
+}
+
+@keyframes justLandedScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-just-landed-scroll {
+  animation: justLandedScroll 30s linear infinite;
+}
