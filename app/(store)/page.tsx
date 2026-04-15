@@ -199,7 +199,7 @@ export default function Home() {
       {renderBanners()}
 
       {/* Hero */}
-      <section className="relative w-full min-h-[78vmin] sm:min-h-[83vmin] md:min-h-[93vmin] flex items-center justify-center overflow-hidden">
+      <section className="relative w-full min-h-[calc(100vh-60px)] sm:min-h-[83vmin] md:min-h-[93vmin] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
           {heroSlides.map((slide, index) => (
             <div
@@ -225,7 +225,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
+        <div className="absolute inset-0 bg-black/30" aria-hidden="true" />
         <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20 text-center">
           <span className="inline-flex items-center rounded-full bg-white/15 border border-white/25 px-3 py-1 sm:px-4 sm:py-1.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.2em] sm:tracking-[0.25em] text-white/95 mb-4 sm:mb-5">
             Sarah Lawson Imports · Premium Quality
@@ -250,20 +250,6 @@ export default function Home() {
             >
               {heroSecondaryText}
             </Link>
-          </div>
-          <div className="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-white/85">
-            <div className="inline-flex items-center gap-2">
-              <span className="inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-white/15">
-                <i className="ri-shield-check-line text-emerald-200 text-sm sm:text-base" />
-              </span>
-              <span className="font-medium">Verified quality products</span>
-            </div>
-            <div className="inline-flex items-center gap-2">
-              <span className="inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-white/15">
-                <i className="ri-truck-line text-emerald-200 text-sm sm:text-base" />
-              </span>
-              <span className="font-medium">Nationwide delivery</span>
-            </div>
           </div>
           {heroSlides.length > 1 && (
             <div className="mt-5 flex items-center justify-center gap-2">
