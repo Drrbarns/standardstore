@@ -4,9 +4,31 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const allowedCorsOrigins = new Set([
+    'http://localhost:8081',
+    'http://127.0.0.1:8081',
+    'http://localhost:19006',
+    'http://127.0.0.1:19006',
+    (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
+].filter(Boolean));
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+    const origin = request.headers.get('origin') || '';
+
+    // Handle CORS preflight for local Expo web preview and app domain.
+    if (pathname.startsWith('/api/') && request.method === 'OPTIONS') {
+        const preflight = new NextResponse(null, { status: 204 });
+        if (allowedCorsOrigins.has(origin)) {
+            preflight.headers.set('Access-Control-Allow-Origin', origin);
+            preflight.headers.set('Vary', 'Origin');
+        }
+        preflight.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        preflight.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        preflight.headers.set('Access-Control-Max-Age', '86400');
+        return preflight;
+    }
+
     const response = NextResponse.next();
 
     // ============================================================
@@ -115,6 +137,12 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/api/')) {
         response.headers.set('X-Content-Type-Options', 'nosniff');
         response.headers.set('Cache-Control', 'no-store');
+        if (allowedCorsOrigins.has(origin)) {
+            response.headers.set('Access-Control-Allow-Origin', origin);
+            response.headers.set('Vary', 'Origin');
+            response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+            response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        }
     }
 
     return response;

@@ -34,7 +34,7 @@ export default function Home() {
             .select('*, product_variants(*), product_images(*)')
             .eq('status', 'active')
             .eq('is_porials', false)
-            .order('created_at', { ascending: false })
+            .order('updated_at', { ascending: false })
             .limit(12),
           supabase
             .from('categories')

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { orderId, customerEmail } = body;
+        const { orderId, customerEmail, redirectUrl } = body;
 
         if (!orderId || typeof orderId !== 'string') {
             return NextResponse.json({ success: false, message: 'Missing or invalid orderId' }, { status: 400 });
@@ -103,6 +103,16 @@ export async function POST(req: Request) {
         const requestUrl = new URL(req.url);
         const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin).replace(/\/+$/, '');
 
+        // Optional override for mobile deep-link return.
+        // Allow production-safe URLs and Expo dev deep links.
+        const defaultRedirectUrl = `${baseUrl}/order-success?order=${orderRef}&payment_success=true`;
+        const allowedPrefixes = ['https://', 'standardstore://', 'exp://', 'exps://'];
+        const safeRedirectUrl =
+            typeof redirectUrl === 'string' &&
+                allowedPrefixes.some((prefix) => redirectUrl.startsWith(prefix))
+                ? redirectUrl
+                : defaultRedirectUrl;
+
         // Generate a unique external reference for Moolre
         const uniqueRef = `${orderRef}-R${Date.now()}`;
 
@@ -113,7 +123,7 @@ export async function POST(req: Request) {
             email: process.env.MOOLRE_MERCHANT_EMAIL || 'admin@standardecom.com',
             externalref: uniqueRef,
             callback: `${baseUrl}/api/payment/moolre/callback`,
-            redirect: `${baseUrl}/order-success?order=${orderRef}&payment_success=true`,
+            redirect: safeRedirectUrl,
             reusable: "0",
             currency: "GHS",
             accountnumber: process.env.MOOLRE_ACCOUNT_NUMBER,
@@ -139,7 +149,12 @@ export async function POST(req: Request) {
         console.log('[Payment] Response status:', result.status, '| Has URL:', !!result.data?.authorization_url);
 
         if (result.status === 1 && result.data?.authorization_url) {
-            return NextResponse.json({ success: true, url: result.data.authorization_url, reference: result.data.reference });
+            return NextResponse.json({
+                success: true,
+                url: result.data.authorization_url,
+                reference: result.data.reference,
+                externalRef: uniqueRef
+            });
         } else {
             return NextResponse.json({ success: false, message: result.message || 'Failed to generate payment link' }, { status: 400 });
         }

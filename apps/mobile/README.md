@@ -31,6 +31,13 @@ Then press:
 - `a` for Android emulator
 - or scan the QR code with Expo Go
 
+Deep-link scheme for app redirects is configured as:
+- `standardstore://`
+
+Universal/app links are configured for:
+- `https://standardecom.com`
+- `https://www.standardecom.com`
+
 ## 3) What is wired now
 
 - Product list from `/api/storefront/products`
@@ -39,11 +46,38 @@ Then press:
 - Supabase auth with secure session persistence (`expo-secure-store`)
 - Account tab with login/signup + signout + order history
 - Cart checkout action wired to `/api/orders/create`
+- Mobile Money flow via `/api/payment/moolre` with deep-link return and verification retries
+- Payment result screen + order tracking screen with timeline and order items
+- Mobile analytics events to `/api/mobile/analytics`
+- Push permission/token registration (best-effort) to `/api/mobile/push/register`
 
 ## 4) Next build steps
 
-- Auth (Supabase session + secure storage)
-- Cart and checkout API integration
-- Orders and account screens
-- Push notifications
+- Production push delivery (provider + backend persistence + order status triggers)
+- Final deep-link verification with Apple/Android association files on live domain
 - EAS build + store submission pipeline
+
+## 5) EAS production setup
+
+1. In `app.json`, replace:
+   - `expo.extra.eas.projectId` with your real EAS project ID
+2. Login and link project:
+
+```bash
+npx eas login
+npx eas init
+```
+
+3. Build artifacts:
+
+```bash
+npx eas build --platform android --profile production
+npx eas build --platform ios --profile production
+```
+
+4. Submit to stores:
+
+```bash
+npx eas submit --platform android --profile production
+npx eas submit --platform ios --profile production
+```

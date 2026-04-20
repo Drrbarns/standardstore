@@ -37,6 +37,33 @@ export type CheckoutInput = {
   phone: string;
   fullName: string;
   items: CartItem[];
+  paymentMethod: "cash_on_delivery" | "moolre";
+};
+
+export type CreatedOrder = {
+  id: string;
+  order_number: string;
+  total: number;
+  email?: string;
+};
+
+export type OrderLookup = {
+  id: string;
+  order_number: string;
+  status: string;
+  payment_status: string;
+  total: number;
+  subtotal?: number;
+  shipping_total?: number;
+  discount_total?: number;
+  created_at: string;
+  order_items?: Array<{
+    id: string;
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+    metadata?: { image?: string; slug?: string };
+  }>;
 };
 
 function generateOrderNumber() {
@@ -84,7 +111,7 @@ export async function createOrderFromCart(input: CheckoutInput) {
     },
   }));
 
-  return request<{ order: { id: string; order_number: string; total: number } }>(
+  return request<{ order: CreatedOrder }>(
     "/api/orders/create",
     "POST",
     {
@@ -102,15 +129,83 @@ export async function createOrderFromCart(input: CheckoutInput) {
         discount_total: 0,
         total,
         shipping_method: "standard",
-        payment_method: "cash_on_delivery",
+        payment_method: input.paymentMethod,
         shipping_address: shippingAddress,
         billing_address: shippingAddress,
         metadata: {
           guest_checkout: !input.userId,
           source: "mobile_app",
+          payment_method: input.paymentMethod,
         },
       },
       items,
     }
   );
+}
+
+export async function initializeMoolrePayment(input: {
+  orderNumber: string;
+  customerEmail: string;
+  redirectUrl: string;
+}) {
+  return request<{ success: boolean; url: string; reference?: string; externalRef?: string }>(
+    "/api/payment/moolre",
+    "POST",
+    {
+      orderId: input.orderNumber,
+      customerEmail: input.customerEmail,
+      redirectUrl: input.redirectUrl,
+    }
+  );
+}
+
+export async function verifyMoolrePayment(input: {
+  orderNumber: string;
+  externalRef?: string | null;
+}) {
+  return request<{
+    success: boolean;
+    status?: string;
+    payment_status?: string;
+    message?: string;
+  }>("/api/payment/moolre/verify", "POST", {
+    orderNumber: input.orderNumber,
+    externalRef: input.externalRef ?? undefined,
+  });
+}
+
+export async function lookupOrder(input: {
+  orderId: string;
+  includeItems?: boolean;
+}) {
+  return request<{ order: OrderLookup }>("/api/orders/lookup", "POST", {
+    orderId: input.orderId,
+    includeItems: input.includeItems ?? false,
+  });
+}
+
+export async function trackMobileEvent(input: {
+  event: string;
+  payload?: Record<string, unknown>;
+}) {
+  try {
+    await request<{ ok: boolean }>("/api/mobile/analytics", "POST", input);
+  } catch {
+    // Analytics should never block user flows.
+  }
+}
+
+export async function registerPushToken(input: {
+  token: string;
+  userId?: string | null;
+  email?: string | null;
+  platform?: string;
+  deviceName?: string;
+  appVersion?: string;
+}) {
+  try {
+    await request<{ ok: boolean }>("/api/mobile/push/register", "POST", input);
+  } catch {
+    // Push token registration should be best-effort.
+  }
 }

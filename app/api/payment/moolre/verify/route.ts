@@ -24,15 +24,25 @@ export async function POST(req: Request) {
             );
         }
 
-        const { orderNumber } = await req.json();
+        const { orderNumber, externalRef } = await req.json();
 
         if (!orderNumber || typeof orderNumber !== 'string') {
             return NextResponse.json({ success: false, message: 'Missing or invalid orderNumber' }, { status: 400 });
         }
 
-        // Sanitize: only allow expected order number format
-        if (!/^ORD-\d+-\d+$/.test(orderNumber)) {
+        // Sanitize: support both web + mobile order formats.
+        if (!/^[A-Z0-9-]{8,64}$/.test(orderNumber)) {
             return NextResponse.json({ success: false, message: 'Invalid order number format' }, { status: 400 });
+        }
+
+        const normalizedExternalRef =
+            typeof externalRef === 'string' && /^[A-Z0-9-]{8,96}$/.test(externalRef)
+                ? externalRef
+                : null;
+
+        // If caller provides external ref, it must belong to this order.
+        if (normalizedExternalRef && !normalizedExternalRef.startsWith(orderNumber)) {
+            return NextResponse.json({ success: false, message: 'Invalid external reference for order' }, { status: 400 });
         }
 
         console.log('[Verify] Checking payment for:', orderNumber);
@@ -89,7 +99,7 @@ export async function POST(req: Request) {
                     'X-API-USER': process.env.MOOLRE_API_USER,
                     'X-API-PUBKEY': process.env.MOOLRE_API_PUBKEY
                 },
-                body: JSON.stringify({ externalref: orderNumber })
+                body: JSON.stringify({ externalref: normalizedExternalRef || orderNumber })
             });
 
             const checkResult = await checkResponse.json();

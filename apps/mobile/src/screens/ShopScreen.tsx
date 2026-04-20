@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { useCart } from "../context/CartContext";
-import { getProducts } from "../lib/api";
+import { getProducts, trackMobileEvent } from "../lib/api";
 import type { StorefrontProduct } from "../types/storefront";
 import { formatCurrency } from "../utils/format";
 
@@ -39,6 +39,13 @@ export function ShopScreen() {
   useEffect(() => {
     void loadProducts();
   }, [loadProducts]);
+
+  useEffect(() => {
+    void trackMobileEvent({
+      event: "shop_viewed",
+      payload: { productCount: products.length },
+    });
+  }, [products.length]);
 
   const subtitle = useMemo(() => {
     const productLabel = products.length === 1 ? "1 product" : `${products.length} products`;
@@ -92,7 +99,13 @@ export function ShopScreen() {
               </Pressable>
               <Pressable
                 style={styles.addButton}
-                onPress={() => addProduct(item)}
+                onPress={() => {
+                  addProduct(item);
+                  void trackMobileEvent({
+                    event: "add_to_cart",
+                    payload: { productId: item.id, slug: item.slug, price: item.price },
+                  });
+                }}
                 disabled={item.price == null}
               >
                 <Text style={styles.addButtonText}>

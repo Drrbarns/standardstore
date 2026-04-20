@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { supabase } from '@/lib/supabase';
 import { escapeHtml } from '@/lib/sanitize';
+import { sendMobilePush } from '@/lib/mobile-push';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'missing_api_key');
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@standardecom.com';
@@ -303,6 +304,26 @@ ${emailButton('View Order in Admin', `${baseUrl}/admin/orders/${id}`)}
             message: smsMessage
         });
     }
+
+    // Mobile push (best-effort)
+    try {
+        await sendMobilePush(
+            {
+                userId: order.user_id || null,
+                email: email || null
+            },
+            {
+                title: 'Order Confirmed',
+                body: `Order #${order_number || id} has been confirmed.`,
+                data: {
+                    type: 'order_confirmed',
+                    orderNumber: order_number || id
+                }
+            }
+        );
+    } catch (err: any) {
+        console.warn('[Notification] Push send failed (non-blocking):', err.message);
+    }
 }
 
 export async function sendOrderStatusUpdate(order: any, newStatus: string) {
@@ -395,6 +416,27 @@ ${emailButton('Track Your Order', trackingUrl)}
             to: phone,
             message: smsMessage
         });
+    }
+
+    // Mobile push (best-effort)
+    try {
+        await sendMobilePush(
+            {
+                userId: order.user_id || null,
+                email: email || null
+            },
+            {
+                title: `Order ${newStatus.replace(/_/g, ' ')}`,
+                body: `Order #${order_number || id} status is now ${newStatus.replace(/_/g, ' ')}.`,
+                data: {
+                    type: 'order_status',
+                    orderNumber: order_number || id,
+                    status: newStatus
+                }
+            }
+        );
+    } catch (err: any) {
+        console.warn('[Notification] Push status update failed (non-blocking):', err.message);
     }
 }
 

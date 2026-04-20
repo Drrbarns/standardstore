@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import type { RootStackParamList } from "../navigation/types";
 import { supabase } from "../lib/supabase";
 import { formatCurrency } from "../utils/format";
 
@@ -122,6 +125,8 @@ function AuthForm() {
 }
 
 export function AccountScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, loading, signOut } = useAuth();
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orders, setOrders] = useState<UserOrder[]>([]);
@@ -205,13 +210,20 @@ export function AccountScreen() {
             )
           }
           renderItem={({ item }) => (
-            <View style={styles.orderCard}>
+            <Pressable
+              style={styles.orderCard}
+              onPress={() =>
+                navigation.navigate("OrderTracking", {
+                  orderNumber: item.order_number,
+                })
+              }
+            >
               <Text style={styles.orderNumber}>{item.order_number}</Text>
               <Text style={styles.orderMeta}>
                 {new Date(item.created_at).toLocaleDateString()} • {item.status}
               </Text>
               <Text style={styles.orderTotal}>{formatCurrency(item.total, "GHS")}</Text>
-            </View>
+            </Pressable>
           )}
         />
       )}

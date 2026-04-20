@@ -50,10 +50,10 @@ export async function GET(request: Request) {
                 .order('created_at', { ascending: false })
                 .limit(limit);
         } else if (category) {
-            // Filter by category slug or name
-            query = query.order('created_at', { ascending: false }).limit(limit);
+            // Recently updated first so edited products bubble to the top
+            query = query.order('updated_at', { ascending: false }).limit(limit);
         } else {
-            query = query.order('created_at', { ascending: false }).limit(limit);
+            query = query.order('updated_at', { ascending: false }).limit(limit);
         }
 
         const { data, error } = await query;

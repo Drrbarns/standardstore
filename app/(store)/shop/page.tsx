@@ -109,7 +109,8 @@ function ShopContent() {
                 break;
               case 'popular':
               default:
-                query = query.order('created_at', { ascending: false });
+                // Recently updated products appear at the top
+                query = query.order('updated_at', { ascending: false });
                 break;
             }
 

@@ -1,0 +1,22 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "REPLACE_WITH_APPLE_TEAM_ID.com.standardecom.mobile"
+        ],
+        "components": [
+          {
+            "/": "/payment-return*"
+          },
+          {
+            "/": "/order-tracking*"
+          },
+          {
+            "/": "/*"
+          }
+        ]
+      }
+    ]
+  }
+}

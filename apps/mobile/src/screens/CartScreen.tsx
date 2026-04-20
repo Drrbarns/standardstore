@@ -1,4 +1,8 @@
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { useMemo, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   Alert,
   FlatList,
@@ -11,10 +15,25 @@ import {
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-import { createOrderFromCart } from "../lib/api";
+import {
+  createOrderFromCart,
+  initializeMoolrePayment,
+  trackMobileEvent,
+  verifyMoolrePayment,
+} from "../lib/api";
+import { notifyOrderUpdate } from "../lib/notifications";
+import type { RootStackParamList } from "../navigation/types";
 import { formatCurrency } from "../utils/format";
 
+WebBrowser.maybeCompleteAuthSession();
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function CartScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const { items, subtotal, removeItem, updateQuantity, clearCart } = useCart();
   const [fullName, setFullName] = useState(
@@ -22,9 +41,97 @@ export function CartScreen() {
   );
   const [phone, setPhone] = useState((user?.phone as string) || "");
   const [placing, setPlacing] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cash_on_delivery" | "moolre"
+  >("moolre");
+  const [pendingOrderNumber, setPendingOrderNumber] = useState<string | null>(
+    null
+  );
 
   const shipping = useMemo(() => (subtotal >= 200 ? 0 : 15), [subtotal]);
   const total = subtotal + shipping;
+
+  async function verifyPaymentWithRetry(orderNumber: string, externalRef?: string) {
+    const attempts = 4;
+    for (let i = 0; i < attempts; i += 1) {
+      const verify = await verifyMoolrePayment({
+        orderNumber,
+        externalRef: externalRef ?? null,
+      });
+      if (verify.success && verify.payment_status === "paid") {
+        return true;
+      }
+      await sleep(2500);
+    }
+    return false;
+  }
+
+  async function launchMoolrePayment(orderNumber: string, email: string) {
+    const redirectBase = Linking.createURL("payment-return");
+    const redirectUrl = `${redirectBase}?order=${encodeURIComponent(
+      orderNumber
+    )}&payment_success=true`;
+
+    const initialized = await initializeMoolrePayment({
+      orderNumber,
+      customerEmail: email,
+      redirectUrl,
+    });
+
+    setPendingOrderNumber(orderNumber);
+    await trackMobileEvent({
+      event: "payment_initiated",
+      payload: { orderNumber, method: "moolre" },
+    });
+
+    const authResult = await WebBrowser.openAuthSessionAsync(
+      initialized.url,
+      redirectBase
+    );
+
+    if (authResult.type === "success") {
+      const parsed = Linking.parse(authResult.url);
+      const incomingOrder = String(parsed.queryParams?.order || orderNumber);
+      const paymentSuccess = String(parsed.queryParams?.payment_success || "");
+
+      if (paymentSuccess === "true") {
+        const paid = await verifyPaymentWithRetry(
+          incomingOrder,
+          initialized.externalRef
+        );
+        if (paid) {
+          clearCart();
+          setPendingOrderNumber(null);
+          await notifyOrderUpdate({
+            title: "Payment successful",
+            body: `Order ${incomingOrder} has been paid.`,
+            data: { orderNumber: incomingOrder },
+          });
+          navigation.navigate("PaymentResult", {
+            orderNumber: incomingOrder,
+            paymentStatus: "paid",
+            total,
+          });
+          return;
+        }
+        navigation.navigate("PaymentResult", {
+          orderNumber: incomingOrder,
+          paymentStatus: "pending",
+          total,
+        });
+        Alert.alert(
+          "Verification pending",
+          "Payment was started, but verification is still pending. You can retry from this cart screen."
+        );
+        return;
+      }
+    }
+
+    Alert.alert(
+      "Payment not completed",
+      "You can continue payment any time using the Resume Payment button."
+    );
+  }
 
   async function placeOrder() {
     if (!user?.email) {
@@ -45,19 +152,45 @@ export function CartScreen() {
 
     try {
       setPlacing(true);
+
+      if (paymentMethod === "moolre" && pendingOrderNumber) {
+        await launchMoolrePayment(pendingOrderNumber, user.email);
+        return;
+      }
+
       const result = await createOrderFromCart({
         userId: user.id,
         email: user.email,
         phone,
         fullName,
         items,
+        paymentMethod,
       });
 
-      clearCart();
-      Alert.alert(
-        "Order placed",
-        `Order ${result.order.order_number} created successfully.`
-      );
+      if (paymentMethod === "cash_on_delivery") {
+        clearCart();
+        setPendingOrderNumber(null);
+        await trackMobileEvent({
+          event: "order_placed_cod",
+          payload: { orderNumber: result.order.order_number, total: result.order.total },
+        });
+        await notifyOrderUpdate({
+          title: "Order placed",
+          body: `Order ${result.order.order_number} was placed successfully.`,
+          data: { orderNumber: result.order.order_number },
+        });
+        navigation.navigate("PaymentResult", {
+          orderNumber: result.order.order_number,
+          paymentStatus: "pending",
+          total: result.order.total,
+        });
+      } else {
+        await trackMobileEvent({
+          event: "begin_checkout",
+          payload: { orderNumber: result.order.order_number, total: result.order.total },
+        });
+        await launchMoolrePayment(result.order.order_number, user.email);
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to place order.";
@@ -116,6 +249,44 @@ export function CartScreen() {
           ListFooterComponent={
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Checkout</Text>
+              <View style={styles.paymentMethodWrap}>
+                <Text style={styles.fieldLabel}>Payment method</Text>
+                <View style={styles.paymentMethodRow}>
+                  <Pressable
+                    style={[
+                      styles.paymentOption,
+                      paymentMethod === "moolre" && styles.paymentOptionActive,
+                    ]}
+                    onPress={() => setPaymentMethod("moolre")}
+                  >
+                    <Text
+                      style={[
+                        styles.paymentOptionText,
+                        paymentMethod === "moolre" && styles.paymentOptionTextActive,
+                      ]}
+                    >
+                      Mobile Money (Moolre)
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.paymentOption,
+                      paymentMethod === "cash_on_delivery" && styles.paymentOptionActive,
+                    ]}
+                    onPress={() => setPaymentMethod("cash_on_delivery")}
+                  >
+                    <Text
+                      style={[
+                        styles.paymentOptionText,
+                        paymentMethod === "cash_on_delivery" &&
+                          styles.paymentOptionTextActive,
+                      ]}
+                    >
+                      Cash on Delivery
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Full name</Text>
                 <TextInput
@@ -155,9 +326,20 @@ export function CartScreen() {
                 disabled={placing}
               >
                 <Text style={styles.checkoutButtonText}>
-                  {placing ? "Placing order..." : "Place order"}
+                  {placing
+                    ? "Processing..."
+                    : paymentMethod === "moolre" && pendingOrderNumber
+                      ? "Resume payment"
+                      : paymentMethod === "moolre"
+                        ? "Pay with Mobile Money"
+                        : "Place order"}
                 </Text>
               </Pressable>
+              {paymentMethod === "moolre" && pendingOrderNumber ? (
+                <Text style={styles.pendingText}>
+                  Pending payment for order {pendingOrderNumber}.
+                </Text>
+              ) : null}
             </View>
           }
         />
@@ -214,6 +396,22 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryTitle: { fontSize: 20, fontWeight: "700", color: "#0f172a" },
+  paymentMethodWrap: { gap: 6 },
+  paymentMethodRow: { gap: 8 },
+  paymentOption: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: "#ffffff",
+  },
+  paymentOptionActive: {
+    borderColor: "#0f172a",
+    backgroundColor: "#f1f5f9",
+  },
+  paymentOptionText: { color: "#334155", fontWeight: "600" },
+  paymentOptionTextActive: { color: "#0f172a" },
   fieldBlock: { gap: 6 },
   fieldLabel: { fontSize: 13, color: "#334155", fontWeight: "600" },
   input: {
@@ -242,4 +440,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   checkoutButtonText: { color: "#ffffff", fontWeight: "700" },
+  pendingText: { marginTop: 6, color: "#64748b", fontSize: 12 },
 });
